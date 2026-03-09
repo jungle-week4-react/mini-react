@@ -35,9 +35,7 @@ def combinations(n, k):
         모든 조합의 리스트
     """
     result = []
-    array = []
-    for i in range(1, n + 1):
-        array.append(i)
+    array = [i for i in range(1, n + 1)]
 
     def backtrack(start, current_combination):
         """

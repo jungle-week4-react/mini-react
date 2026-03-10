@@ -94,3 +94,8 @@ dmypy.json
 *.swo
 *~
 
+# 백준
+*.cph
+
+# 테스트 파일
+test.py

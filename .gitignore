@@ -99,3 +99,6 @@ dmypy.json
 
 # 테스트 파일
 test.py
+
+# 강의
+alghorithm_lecture/

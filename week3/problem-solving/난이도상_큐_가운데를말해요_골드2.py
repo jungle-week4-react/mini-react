@@ -1,24 +1,32 @@
 # 큐 - 가운데를 말해요 (백준 골드2)
 # 문제 링크: https://www.acmicpc.net/problem/1655
 import heapq
+import sys
 
-
-input_number = int(input())
-input_list = []
-middle_index = -1
-middle_value = 0
-data_length = 0
-
+input_number = int(sys.stdin.readline().rstrip("\n"))
+middle_value = -1
+min_heap_q = []
+max_heap_q = []
 
 answer_list = []
 for _ in range(input_number):
-    data = int(input())
-    if len(input_list) == 0:
-        input_list.append(data)
-        middle_index = 0
-        answer_list.append(data)
+    data = int(sys.stdin.readline().rstrip("\n"))
+    if len(min_heap_q) == 0:
+        heapq.heappush(min_heap_q,-data)
+        middle_value = -min_heap_q[0]
     else:
-        1
+        if len(min_heap_q) <= len(max_heap_q):
+            heapq.heappush(min_heap_q, -data)
+        else:
+            heapq.heappush(max_heap_q, data)
+    if len(min_heap_q) > 0 and len(max_heap_q) > 0 and max_heap_q[0] < -min_heap_q[0]:
+        change_max = heapq.heappop(max_heap_q)
+        change_min = -heapq.heappop(min_heap_q)
+        heapq.heappush(max_heap_q,change_min)
+        heapq.heappush(min_heap_q,-change_max)
+    middle_value = -min_heap_q[0]
+    answer_list.append(middle_value)
+
 print("\n".join(list(map(str, answer_list))))
 
 

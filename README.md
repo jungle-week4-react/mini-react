@@ -3,7 +3,10 @@
 에디터에 입력한 HTML을 임시 DOM으로 파싱해 Virtual DOM으로 바꾸고, 이전 트리와 비교해 변경점만 실제 DOM에 반영하는 mini React 프로젝트입니다.  
 학습 과정에서는 두 가지 버전을 만들었습니다.
 
-
+<p align="center">
+  <img src="src/img/ver1.gif" alt="ver1 demo" width="49%" />
+  <img src="src/img/ver2.gif" alt="ver2 demo" width="49%" />
+</p>
 
 - 버전 1: `VNode` 트리를 재귀 DFS로 비교하는 가장 단순한 Diff 버전
 - 버전 2: `Fiber`를 도입해 `render -> diff -> commit`을 분리하고, `MessageChannel`로 작업을 5ms 단위로 나눠 실행하는 버전

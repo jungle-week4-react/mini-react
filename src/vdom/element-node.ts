@@ -9,21 +9,23 @@ export type ElementVNode = {
   children: Array<ElementVNode | TextVNode>;
 };
 
-export const createElementNode = (
+export function createElementNode(
   tag: string,
   props: ElementNodeProps = {},
   children: Array<ElementVNode | TextVNode> = [],
-): ElementVNode => ({
-  type: 'element',
-  tag,
-  props,
-  children,
-});
+): ElementVNode {
+  return {
+    type: 'element',
+    tag,
+    props,
+    children,
+  };
+}
 
-export const isElementNode = (node: unknown): node is ElementVNode => {
+export function isElementNode(node: unknown): node is ElementVNode {
   if (typeof node !== 'object' || node === null) {
     return false;
   }
 
   return (node as { type?: unknown }).type === 'element';
-};
+}

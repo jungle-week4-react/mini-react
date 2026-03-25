@@ -3,15 +3,17 @@ export type TextVNode = {
   value: string;
 };
 
-export const createTextNode = (value: string): TextVNode => ({
-  type: 'text',
-  value,
-});
+export function createTextNode(value: string): TextVNode {
+  return {
+    type: 'text',
+    value,
+  };
+}
 
-export const isTextNode = (node: unknown): node is TextVNode => {
+export function isTextNode(node: unknown): node is TextVNode {
   if (typeof node !== 'object' || node === null) {
     return false;
   }
 
   return (node as { type?: unknown }).type === 'text';
-};
+}

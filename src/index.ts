@@ -19,9 +19,14 @@ import {
   createWorkInProgress,
   fiberRuntime,
   setFiberStatus,
+  subscribeFiberCommitSummary,
+  subscribeFiberRenderSummary,
+  subscribeFiberWorkSlice,
   subscribeFiberStatus,
   type Fiber,
+  type FiberCommitSummaryListener,
   type FiberRoot,
+  type FiberRenderSummaryListener,
   type FiberStatusListener,
 } from './vdom/fiber.js';
 import { commitRoot } from './vdom/dom.js';
@@ -37,7 +42,14 @@ import {
 export type { ElementNodeKey, ElementNodeProps, ElementVNode } from './vdom/element-node.js';
 export type { VNode } from './vdom/node.js';
 export type { TextVNode } from './vdom/text-node.js';
-export type { Fiber, FiberRoot, FiberStatusListener } from './vdom/fiber.js';
+export type {
+  Fiber,
+  FiberCommitSummaryListener,
+  FiberRoot,
+  FiberRenderSummaryListener,
+  FiberStatusListener,
+  FiberWorkSliceListener,
+} from './vdom/fiber.js';
 export { createElementNode, isElementNode } from './vdom/element-node.js';
 export { createVNodeFromElement } from './vdom/from-dom.js';
 export { createTextNode, isTextNode } from './vdom/text-node.js';
@@ -51,7 +63,11 @@ export {
   createFiberRoot,
   createWorkInProgress,
   fiberRuntime,
+  emitFiberWorkSlice,
   setFiberStatus,
+  subscribeFiberCommitSummary,
+  subscribeFiberRenderSummary,
+  subscribeFiberWorkSlice,
   subscribeFiberStatus,
 } from './vdom/fiber.js';
 export { commitRoot } from './vdom/dom.js';
@@ -76,20 +92,85 @@ const PATCH_BUTTON_ID = 'patch-button';
 const RESET_BUTTON_ID = 'reset-button';
 const EDITOR_INDENT = '  ';
 const INITIAL_SOURCE_MARKUP = `
-<section class="stack" data-key="stack">
-  <article class="card" data-key="alpha">
-    <h3>Alpha</h3>
-    <p>첫 번째 카드입니다.</p>
-  </article>
-  <article class="card" data-key="beta">
-    <h3>Beta</h3>
-    <p>두 번째 카드입니다.</p>
-  </article>
-  <article class="card accent" data-key="gamma">
-    <h3>Gamma</h3>
-    <p>세 번째 카드입니다.</p>
-  </article>
-</section>
+<div class="demo-shell" data-key="shell">
+  <div class="hero-card" data-key="hero">
+    <div class="hero-copy">
+      <div class="hero-badge">TODAY</div>
+      <div class="hero-title">Virtual DOM Studio</div>
+      <div class="hero-subtitle">3개 패널과 5ms 슬라이스 로그를 함께 보는 더미 화면</div>
+    </div>
+    <div class="hero-side">
+      <div class="hero-score">82%</div>
+      <div class="hero-score-label">sync score</div>
+    </div>
+  </div>
+
+  <div class="summary-grid" data-key="summary">
+    <div class="summary-card" data-key="users">
+      <div class="summary-label">Active Users</div>
+      <div class="summary-value">1,284</div>
+      <div class="summary-delta positive">+12.4%</div>
+    </div>
+    <div class="summary-card" data-key="latency">
+      <div class="summary-label">Latency</div>
+      <div class="summary-value">48ms</div>
+      <div class="summary-delta">stable</div>
+    </div>
+    <div class="summary-card accent" data-key="release">
+      <div class="summary-label">Release</div>
+      <div class="summary-value">v0.8.2</div>
+      <div class="summary-delta positive">ready</div>
+    </div>
+  </div>
+
+  <div class="detail-grid" data-key="details">
+    <div class="feed-card" data-key="activity">
+      <div class="section-title">Recent Activity</div>
+      <div class="feed-row" data-key="activity-1">
+        <div class="feed-dot"></div>
+        <div class="feed-copy">
+          <div class="feed-title">Fiber render resumed</div>
+          <div class="feed-meta">slice #4 · 11:42</div>
+        </div>
+      </div>
+      <div class="feed-row" data-key="activity-2">
+        <div class="feed-dot accent"></div>
+        <div class="feed-copy">
+          <div class="feed-title">History snapshot stored</div>
+          <div class="feed-meta">v7 · patch complete</div>
+        </div>
+      </div>
+      <div class="feed-row" data-key="activity-3">
+        <div class="feed-dot"></div>
+        <div class="feed-copy">
+          <div class="feed-title">Viewer diff committed</div>
+          <div class="feed-meta">3 updated nodes</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-column" data-key="side">
+      <div class="progress-card" data-key="progress">
+        <div class="section-title">Deploy Progress</div>
+        <div class="progress-track">
+          <div class="progress-fill" style="width: 68%"></div>
+        </div>
+        <div class="progress-labels">
+          <div>compile</div>
+          <div>68%</div>
+        </div>
+      </div>
+      <div class="chip-card" data-key="chips">
+        <div class="section-title">Pinned Filters</div>
+        <div class="chip-row">
+          <div class="chip">render</div>
+          <div class="chip">commit</div>
+          <div class="chip accent">diff</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 `.trim();
 
 type SourceMode = 'html' | 'vdom';
@@ -130,6 +211,14 @@ if (typeof document !== 'undefined') {
 }
 
 function setupPatchDemo(): void {
+  /*
+   * 데모 전체 흐름
+   * 1. 사용자가 왼쪽 source editor에서 HTML 또는 VDOM을 수정한다.
+   * 2. Patch 버튼을 누르면 applyPatch()가 source를 읽어 VNode로 정규화한다.
+   * 3. render(vnode, renderRoot)가 Fiber scheduler를 시작한다.
+   * 4. scheduler가 render -> diff -> commit을 수행한다.
+   * 5. commit이 끝나면 history 탭과 로그 UI를 갱신한다.
+   */
   const demoRoot = document.getElementById(DEMO_ROOT_ID);
   const sourceEditor = document.getElementById(SOURCE_EDITOR_ID);
   const htmlModeButton = document.getElementById(HTML_MODE_BUTTON_ID);
@@ -204,6 +293,34 @@ function setupPatchDemo(): void {
       done();
     }
   });
+  const unsubscribeWorkSlice = subscribeFiberWorkSlice((root, sliceCount) => {
+    if (root.container !== renderElement) {
+      return;
+    }
+
+    addLog('slice', `#${sliceCount.sliceCount} ${formatDuration(sliceCount.elapsedMs)}`);
+  });
+  const unsubscribeRenderSummary = subscribeFiberRenderSummary((root, summary) => {
+    if (root.container !== renderElement) {
+      return;
+    }
+
+    addLog('render', `${formatDuration(summary.elapsedMs)} · ${summary.sliceCount}s`);
+  });
+  const unsubscribeCommitSummary = subscribeFiberCommitSummary((root, summary) => {
+    if (root.container !== renderElement) {
+      return;
+    }
+
+    addLog(
+      'pick',
+      `${formatDuration(summary.selectionElapsedMs)} · ${summary.operationCount}op`,
+    );
+    addLog(
+      'dom',
+      formatDuration(summary.applyElapsedMs),
+    );
+  });
 
   htmlModeButtonElement.addEventListener('click', () => {
     switchSourceMode('html');
@@ -251,19 +368,22 @@ function setupPatchDemo(): void {
     'beforeunload',
     () => {
       unsubscribe();
+      unsubscribeWorkSlice();
+      unsubscribeRenderSummary();
+      unsubscribeCommitSummary();
     },
     { once: true },
   );
 
   async function initializeDemo(): Promise<void> {
     resetState();
-    addLog('init', '초기 예제를 바로 patch해 첫 화면을 준비했습니다.');
+    addLog('init', '초기 patch');
     await applyPatch('init');
   }
 
   function resetDemo(): void {
     resetState();
-    addLog('reset', 'source를 초기 예제로 되돌렸습니다. Patch를 눌러 다시 반영하세요.');
+    addLog('reset', '초기 source로 되돌림');
   }
 
   function resetState(): void {
@@ -322,12 +442,14 @@ function setupPatchDemo(): void {
       currentSnapshotId,
       selectHistorySnapshot,
     );
-    addLog('history', `${snapshot.label}을 source로 불러왔습니다.`);
+    addLog('history', `${snapshot.label} 불러옴`);
   }
 
   async function applyPatch(from: string): Promise<void> {
+    // 순서 1.
+    // Patch 버튼을 누르면 여기서부터 한 사이클이 시작된다.
     if (isPatchRunning) {
-      addLog('skip', '이전 patch가 아직 진행 중입니다.');
+      addLog('skip', 'patch 진행 중');
       return;
     }
 
@@ -338,14 +460,17 @@ function setupPatchDemo(): void {
     statusElement.textContent = 'waiting for scheduler';
 
     try {
+      // 순서 2.
+      // editor 문자열을 읽어 현재 모드에 맞는 SourceState로 변환한다.
+      // 여기서 html <-> vnode <-> vdomText가 서로 정규화된다.
       sourceState = readSourceStateFromEditor(sourceMode, editorElement.value);
       renderSourceEditor();
-      addLog('patch', `${from}에서 patch를 시작했습니다.`);
+      addLog('patch', `${from} patch 시작`);
       addLog(
         'source',
         sourceMode === 'html'
-          ? 'HTML source를 읽어 VDOM으로 변환했습니다.'
-          : 'VDOM source를 읽어 HTML과 VDOM을 동기화했습니다.',
+          ? 'HTML -> VDOM'
+          : 'VDOM -> HTML sync',
       );
 
       await waitForNextPaint();
@@ -354,10 +479,19 @@ function setupPatchDemo(): void {
         resolveIdle = resolve;
       });
 
+      // 순서 3.
+      // 이 호출이 실제 Fiber scheduler 진입점이다.
       render(sourceState.vnode, renderElement);
-      addLog('render', 'render(vnode, container)를 호출했습니다.');
+      addLog('render', 'start');
 
+      // 순서 4.
+      // Fiber가 idle 상태로 돌아올 때까지 기다린다.
+      // 즉 render + commit이 모두 끝날 때까지 대기한다.
       await idlePromise;
+
+      // 순서 5.
+      // 엔진 작업이 끝난 뒤 데모 UI(history/log)를 갱신한다.
+      const historyUiStartedAt = performance.now();
 
       if (sourceState.html !== currentCommittedHtml) {
         const snapshot = findSnapshotByHtml(history, sourceState.html)
@@ -373,7 +507,7 @@ function setupPatchDemo(): void {
           currentSnapshotId,
           selectHistorySnapshot,
         );
-        addLog('history', `${snapshot.label}을 현재 버전으로 저장했습니다.`);
+        addLog('history', `${snapshot.label} 저장`);
       } else if (selectedSnapshotId !== null) {
         currentSnapshotId = selectedSnapshotId;
         renderHistoryTabs(
@@ -385,7 +519,7 @@ function setupPatchDemo(): void {
         );
       }
 
-      addLog('commit', 'patch가 끝나 viewer가 갱신됐습니다.');
+      addLog('ui', formatDuration(performance.now() - historyUiStartedAt));
     } catch (error) {
       reportSourceError(error);
     } finally {
@@ -512,6 +646,7 @@ function readSourceStateFromEditor(
 }
 
 function createSourceStateFromHtml(sourceHtml: string): SourceState {
+  // HTML source 문자열 -> 실제 DOM Element -> VNode -> SourceState 순서다.
   const normalizedHtml = normalizeSourceMarkup(sourceHtml);
   const rootElement = parseSingleRootHtml(normalizedHtml);
   const vnode = createVNodeFromElement(rootElement);
@@ -520,6 +655,7 @@ function createSourceStateFromHtml(sourceHtml: string): SourceState {
 }
 
 function createSourceStateFromVdomText(vdomText: string): SourceState {
+  // VDOM JSON 문자열 -> VNode -> HTML 직렬화 -> SourceState 순서다.
   const parsed = JSON.parse(vdomText) as unknown;
   const vnode = parseEditableVNode(parsed, 'root');
 
@@ -924,6 +1060,10 @@ function createLogWriter(logRoot: Element): (kind: string, message: string) => v
     logRoot.append(item);
     logRoot.scrollTop = logRoot.scrollHeight;
   };
+}
+
+function formatDuration(durationMs: number): string {
+  return `${durationMs.toFixed(1)}ms`;
 }
 
 function renderHistoryTabs(

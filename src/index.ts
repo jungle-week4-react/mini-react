@@ -13,4 +13,8 @@ export { createElementNode, isElementNode } from './vdom/element-node.js';
 export { createDOMNodeFromVNode } from './vdom/to-dom.js';
 export { createVNodeFromElement } from './vdom/from-dom.js';
 export { createTextNode, isTextNode } from './vdom/text-node.js';
-export { applyPatches, createDomNodeFromVNode, mountVNode } from './vdom/dom.js';
+export {
+  applyPatches as applyContainerPatches,
+  createDomNodeFromVNode,
+  mountVNode,
+} from './vdom/dom.js';

@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Virtual DOM + Diff</title>
+    <style>
+      :root {
+        --bg: #f5f6f8;
+        --panel: #ffffff;
+        --line: #e5e8eb;
+        --line-strong: #d7dce2;
+        --text: #191f28;
+        --subtext: #6b7684;
+        --blue: #3182f6;
+        --blue-soft: #e8f3ff;
+        --shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        color: var(--text);
+        background: var(--bg);
+        font-family:
+          -apple-system,
+          BlinkMacSystemFont,
+          "Apple SD Gothic Neo",
+          "Pretendard",
+          "Segoe UI",
+          sans-serif;
+        overflow: hidden;
+      }
+
+      main {
+        width: min(1680px, calc(100vw - 32px));
+        margin: 0 auto;
+        height: 100vh;
+        padding: 16px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        overflow: hidden;
+      }
+
+      .hero {
+        padding: 24px;
+        border-radius: 28px;
+        background: linear-gradient(180deg, #ffffff, #fbfcfe);
+        box-shadow: var(--shadow);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(30px, 4vw, 44px);
+        line-height: 1.18;
+        letter-spacing: -0.03em;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-top: 18px;
+      }
+
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: 14px;
+        padding: 12px 16px;
+        background: var(--blue);
+        color: white;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      button.secondary,
+      .history-tab,
+      .mode-button {
+        background: #ffffff;
+        color: var(--text);
+        border: 1px solid var(--line);
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.55;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(260px, 0.62fr);
+        flex: 1 1 auto;
+        gap: 16px;
+        align-items: stretch;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .panel {
+        min-width: 0;
+        min-height: 0;
+        height: 100%;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        background: var(--panel);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 20px 22px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .panel-title h2 {
+        margin: 0;
+        font-size: 18px;
+        line-height: 1.2;
+      }
+
+      .panel-title span {
+        display: block;
+        margin-top: 6px;
+        color: var(--subtext);
+        font-size: 13px;
+      }
+
+      .panel-body {
+        padding: 18px 22px 22px;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .source-panel .panel-body,
+      .flow-panel .panel-body {
+        display: grid;
+        gap: 14px;
+      }
+
+      .source-panel .panel-body {
+        grid-template-rows: auto minmax(0, 1fr);
+      }
+
+      .flow-panel .panel-body {
+        grid-template-rows: minmax(0, 1fr);
+      }
+
+      .viewer-panel .panel-body {
+        display: grid;
+      }
+
+      .flow-panel .panel-head {
+        padding: 18px 16px 12px;
+      }
+
+      .flow-panel .panel-body {
+        padding: 14px 14px 16px;
+      }
+
+      .mode-switch {
+        display: flex;
+        gap: 8px;
+        padding: 4px;
+        border-radius: 16px;
+        background: #f2f4f6;
+      }
+
+      .mode-button {
+        min-width: 72px;
+        padding: 10px 14px;
+        border-radius: 12px;
+      }
+
+      .mode-button[data-active="true"] {
+        border-color: transparent;
+        background: var(--blue);
+        color: white;
+      }
+
+      textarea,
+      .viewer {
+        width: 100%;
+        border-radius: 18px;
+        border: 1px solid var(--line-strong);
+      }
+
+      textarea {
+        min-height: 0;
+        height: 100%;
+        padding: 18px;
+        resize: none;
+        overflow: auto;
+        background: #0f1720;
+        color: #e8edf3;
+        font-family: "SFMono-Regular", "Monaco", monospace;
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      .history-strip {
+        display: grid;
+      }
+
+      .history-tabs {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 8px;
+        min-height: 40px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 2px;
+      }
+
+      .history-tab {
+        flex: 0 0 auto;
+        padding: 10px 12px;
+        border-radius: 999px;
+        font-size: 13px;
+      }
+
+      .history-tab[data-selected="true"] {
+        border-color: var(--blue);
+        color: var(--blue);
+      }
+
+      .history-tab[data-current="true"] {
+        border-color: transparent;
+        background: var(--blue);
+        color: white;
+      }
+
+      .viewer {
+        min-height: 0;
+        height: 100%;
+        padding: 18px;
+        overflow: auto;
+        background:
+          radial-gradient(circle at top right, rgba(49, 130, 246, 0.08), transparent 28%),
+          linear-gradient(180deg, #ffffff, #fbfcff);
+      }
+
+      .stack {
+        display: grid;
+        gap: 12px;
+      }
+
+      .card {
+        padding: 18px;
+        border: 1px solid #ebedf0;
+        border-radius: 20px;
+        background: #ffffff;
+      }
+
+      .card.accent {
+        border-color: rgba(49, 130, 246, 0.18);
+        background: linear-gradient(180deg, #fafdff, #f4f9ff);
+      }
+
+      .card h3 {
+        margin: 0 0 8px;
+        font-size: 18px;
+        line-height: 1.3;
+      }
+
+      .card p {
+        margin: 0;
+        color: var(--subtext);
+        line-height: 1.7;
+      }
+
+      .status-box {
+        display: none;
+      }
+
+      .log-list {
+        display: grid;
+        gap: 6px;
+        padding: 12px;
+        min-height: 0;
+        height: 100%;
+        overflow: auto;
+        align-self: stretch;
+        border: 1px solid #1e293b;
+        border-radius: 16px;
+        background: #0f172a;
+        color: #dbe7ff;
+        font-family: "SFMono-Regular", "Monaco", monospace;
+      }
+
+      .timeline-entry {
+        display: grid;
+        grid-template-columns: 46px 42px minmax(0, 1fr);
+        gap: 4px;
+        align-items: start;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .timeline-time {
+        color: #7c8ba1;
+        font-size: 11px;
+      }
+
+      .timeline-kind {
+        color: #7dd3fc;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 11px;
+      }
+
+      .timeline-message {
+        color: #dbe7ff;
+        font-size: 12px;
+        word-break: break-word;
+      }
+
+      @media (max-width: 1260px) {
+        body {
+          overflow: auto;
+        }
+
+        .workspace {
+          grid-template-columns: 1fr;
+          overflow: visible;
+        }
+
+        main {
+          height: auto;
+          min-height: auto;
+          display: block;
+          overflow: visible;
+        }
+
+        .panel {
+          height: auto;
+          display: block;
+        }
+
+        .panel-body,
+        .viewer-panel .panel-body {
+          display: block;
+        }
+
+        textarea {
+          height: auto;
+          min-height: 360px;
+          resize: vertical;
+        }
+
+        .viewer {
+          height: auto;
+          min-height: 360px;
+        }
+
+        .log-list {
+          height: auto;
+          max-height: none;
+        }
+
+        .timeline-entry {
+          grid-template-columns: 1fr;
+          gap: 2px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main id="fiber-demo">
+      <section class="hero">
+        <h1>Virtual DOM + Diff</h1>
+        <div class="toolbar">
+          <button id="patch-button">Patch</button>
+          <button id="reset-button" class="secondary">Reset</button>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <article class="panel source-panel">
+          <div class="panel-head">
+            <div class="panel-title">
+              <h2>Source</h2>
+              <span>HTML과 VDOM을 번갈아 수정하고, 위 버전 탭을 눌러 과거 source를 다시 불러옵니다.</span>
+            </div>
+            <div class="mode-switch">
+              <button id="html-mode-button" class="mode-button" data-active="true">HTML</button>
+              <button id="vdom-mode-button" class="mode-button" data-active="false">VDOM</button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="history-strip">
+              <div id="history-tabs" class="history-tabs"></div>
+            </div>
+            <textarea id="source-editor" spellcheck="false"></textarea>
+          </div>
+        </article>
+
+        <article class="panel viewer-panel">
+          <div class="panel-head">
+            <div class="panel-title">
+              <h2>Viewer</h2>
+              <span>현재 source가 patch된 결과 DOM이 여기 반영됩니다.</span>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div id="render-root" class="viewer"></div>
+          </div>
+        </article>
+
+        <article class="panel flow-panel">
+          <div class="panel-head">
+            <div class="panel-title">
+              <h2>Flow Log</h2>
+              <span>Triggered 부터 Commit 까지 한 번의 patch 흐름을 기록합니다.</span>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div id="status-output" class="status-box">idle</div>
+            <div id="log-output" class="log-list"></div>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script type="module" src="./dist/index.js"></script>
+  </body>
+</html>

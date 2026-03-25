@@ -5,8 +5,7 @@ import {
   createWorkInProgress,
   fiberRuntime,
   FiberRenderState,
-  prepareFreshStack,
-  transitionRootState,
+  setFiberStatus,
   YIELD_INTERVAL_MS,
   type FiberRoot,
 } from './fiber.js';
@@ -37,6 +36,19 @@ export function render(element: VNode, container: Element): FiberRoot {
   return root;
 }
 
+// 특정 container의 렌더 상태를 완전히 초기화
+export function resetRenderRoot(container: Element): void {
+  roots.delete(container);
+
+  if (fiberRuntime.workInProgressRoot?.container === container) {
+    fiberRuntime.nextUnitOfWork = null;
+    fiberRuntime.workInProgress = null;
+    fiberRuntime.workInProgressRoot = null;
+    fiberRuntime.renderDeadline = 0;
+    fiberRuntime.isHostCallbackScheduled = false;
+  }
+}
+
 // WIP 렌더를 시작할 준비
 export function scheduleUpdateOnRoot(root: FiberRoot): void {
   // 현재 트리 기준 새 WIP 트리 생성 (fork)
@@ -44,12 +56,12 @@ export function scheduleUpdateOnRoot(root: FiberRoot): void {
 
   // 렌더에서 사용할 업데이트 입력 (예약된 작업)
   workInProgress.updateQueue = root.current.updateQueue;
-  // 새 트리 결과물이 저장될 자리, 이전 결과물이 있으면 초기화
-  root.finishedWork = null;
-  // 렌더 루프 시작점 세팅
-  prepareFreshStack(root, workInProgress);
+  // 렌더 루프가 이 WIP부터 시작하도록 책갈피를 맞춘다.
+  fiberRuntime.workInProgressRoot = root;
+  fiberRuntime.workInProgress = workInProgress;
+  fiberRuntime.nextUnitOfWork = workInProgress;
   // 업데이트가 예약된 상태로 변경
-  transitionRootState(root, FiberRenderState.Triggered);
+  setFiberStatus(root, FiberRenderState.Triggered);
   // MessageChannel.port2 콜백 예약
   requestHostCallback();
 }
@@ -89,7 +101,7 @@ function performWorkUntilDeadline(): void {
 
   // 요청을 수집하는 상태를 끝내고 render phase를 시작
   if (root !== null && root.status === FiberRenderState.Triggered) {
-    transitionRootState(root, FiberRenderState.Render);
+    setFiberStatus(root, FiberRenderState.Render);
   }
 
   // 할당된 시간까지 작업 반복
@@ -102,7 +114,7 @@ function performWorkUntilDeadline(): void {
   }
   // 작업 상태를 끝내고 commit 시작
   if (root !== null && fiberRuntime.workInProgress !== null) {
-    transitionRootState(root, FiberRenderState.Completed);
+    setFiberStatus(root, FiberRenderState.Completed);
     commitRoot(root, fiberRuntime.workInProgress);
   }
 }

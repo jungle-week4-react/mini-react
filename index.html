@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <title>Virtual DOM + Diff</title>
+    <link rel="stylesheet" href="./demo.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <h1>Virtual DOM + Diff</h1>
+        <div class="action-row">
+          <button id="patch-button" class="button button-primary" type="button">Patch</button>
+          <button id="history-back-button" class="button" type="button">뒤로가기</button>
+          <button id="history-forward-button" class="button" type="button">앞으로가기</button>
+          <button id="reset-button" class="button button-muted" type="button">Reset</button>
+        </div>
+        <p id="status-text" class="status-line" aria-live="polite"></p>
+      </header>
+
+      <main class="workspace">
+        <section class="panel source-panel" aria-label="Source">
+          <div class="panel-header">
+            <div>
+              <h2>Source</h2>
+              <p class="panel-description">
+                HTML나 VDOM을 변경하고, 위 버튼을 눌러 과거 source를 다시 볼 수 있습니다.
+              </p>
+            </div>
+            <div class="mode-toggle">
+              <button id="html-mode-button" class="mode-button" type="button">HTML</button>
+              <button id="vdom-mode-button" class="mode-button" type="button">VDOM</button>
+            </div>
+          </div>
+
+          <div id="history-tabs" class="history-tabs" aria-label="State history"></div>
+
+          <textarea
+            id="source-editor"
+            class="source-editor"
+            spellcheck="false"
+            aria-label="Source editor"
+          ></textarea>
+          <p id="error-text" class="error-line" aria-live="polite"></p>
+        </section>
+
+        <section class="panel viewer-panel" aria-label="Viewer">
+          <div class="panel-header">
+            <div>
+              <h2>Viewer</h2>
+              <p class="panel-description">
+                현재 source가 patch된 결과 DOM이 여기에 반영됩니다.
+              </p>
+            </div>
+            <div class="viewer-meta">
+              <div class="meta-chip">
+                <span>State</span>
+                <strong id="history-text">v1 / 1</strong>
+              </div>
+              <div class="meta-chip">
+                <span>Patch</span>
+                <strong id="patch-count">0 patches</strong>
+              </div>
+            </div>
+          </div>
+
+          <div id="actual-root" class="viewer-stage">
+            <section class="viewer-list" data-key="stack">
+              <article class="viewer-card" data-key="alpha">
+                <h3>Alpha</h3>
+                <p>첫 번째 카드입니다.</p>
+              </article>
+              <article class="viewer-card" data-key="beta">
+                <h3>Beta</h3>
+                <p>두 번째 카드입니다.</p>
+              </article>
+              <article class="viewer-card" data-key="gamma">
+                <h3>Gamma</h3>
+                <p>세 번째 카드입니다.</p>
+              </article>
+            </section>
+          </div>
+
+          <details class="diff-panel">
+            <summary>Diff Result</summary>
+            <pre id="diff-output" class="diff-output">[]</pre>
+          </details>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./dist/demo.js"></script>
+  </body>
+</html>

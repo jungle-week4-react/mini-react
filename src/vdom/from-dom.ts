@@ -8,6 +8,7 @@ import { createTextNode, type TextVNode } from './text-node.js';
 
 const WHITESPACE_ONLY_TEXT_PATTERN = /^\s*$/;
 const KEY_ATTRIBUTE_NAME = 'key';
+const DATA_KEY_ATTRIBUTE_NAME = 'data-key';
 
 function createVNodeFromNode(node: Node): VNode | null {
   if (node instanceof Element) {
@@ -33,7 +34,8 @@ export function createVNodeFromElement(element: Element): ElementVNode {
 
 // key attribute를 읽어서 내부 key로 사용한다.
 function readElementKey(element: Element): string | null {
-  const value = element.getAttribute(KEY_ATTRIBUTE_NAME);
+  const value = element.getAttribute(DATA_KEY_ATTRIBUTE_NAME)
+    ?? element.getAttribute(KEY_ATTRIBUTE_NAME);
 
   if (value !== null && value !== '') {
     return value;
@@ -78,5 +80,5 @@ function createTextVNodeFromText(textNode: Text): TextVNode | null {
 }
 
 function isKeyAttributeName(name: string): boolean {
-  return name === KEY_ATTRIBUTE_NAME;
+  return name === KEY_ATTRIBUTE_NAME || name === DATA_KEY_ATTRIBUTE_NAME;
 }

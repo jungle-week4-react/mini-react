@@ -4,10 +4,11 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test test/diff.test.mjs",
+    "test": "npm run build && node --test test/*.test.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
+    "jsdom": "^29.0.1",
     "typescript": "^5.9.2"
   }
 }

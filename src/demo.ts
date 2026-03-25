@@ -5,6 +5,8 @@ import { mountVNode, applyPatches } from './vdom/dom.js';
 import type { VNode } from './vdom/node.js';
 import { createTextNode } from './vdom/text-node.js';
 
+// 브라우저에서 필요한 DOM 요소 id를 상수로 모아 두면
+// 마크업 구조가 바뀌어도 문자열 오타를 한곳에서 관리할 수 있다.
 const ACTUAL_ROOT_ID = 'actual-root';
 const SOURCE_EDITOR_ID = 'source-editor';
 const HTML_MODE_BUTTON_ID = 'html-mode-button';
@@ -21,23 +23,29 @@ const PATCH_COUNT_ID = 'patch-count';
 const DIFF_OUTPUT_ID = 'diff-output';
 const QUICK_TAG_BUTTON_SELECTOR = '.quick-tag-button';
 
+// 빠른 삽입 버튼이 허용하는 태그 집합.
+// HTML / VDOM 어느 모드에서 눌러도 동일한 구조를 만들기 위해 제한된 목록만 사용한다.
 const QUICK_INSERT_TAGS = ['h1', 'h2', 'h3', 'article'] as const;
 
 type QuickInsertTag = (typeof QUICK_INSERT_TAGS)[number];
 
 type SourceMode = 'html' | 'vdom';
 
+// 데모에서 한 시점의 상태를 표현하는 구조.
+// 같은 내용을 HTML 문자열 / VDOM 객체 / VDOM 편집용 JSON 텍스트로 함께 들고 다닌다.
 type DemoState = {
   html: string;
   vnode: VNode;
   vdomText: string;
 };
 
+// history에는 사람이 보기 쉬운 라벨과 실제 상태를 함께 저장한다.
 type HistoryEntry = {
   label: string;
   state: DemoState;
 };
 
+// VDOM 탭에서 직접 편집할 수 있도록 VNode를 JSON 친화적인 구조로 풀어 쓴 타입.
 type EditableVNode =
   | {
       type: 'text';
@@ -57,6 +65,8 @@ if (typeof document !== 'undefined') {
   }, { once: true });
 }
 
+// 데모 전체의 상태와 이벤트를 연결하는 진입점.
+// 화면 준비, 초기 상태 생성, 버튼/에디터 이벤트 바인딩을 한곳에서 수행한다.
 function setupDemo(): void {
   const actualRoot = document.getElementById(ACTUAL_ROOT_ID);
   const sourceEditor = document.getElementById(SOURCE_EDITOR_ID);
@@ -99,6 +109,8 @@ function setupDemo(): void {
     return;
   }
 
+  // null 체크와 instanceof 체크가 끝난 뒤에는
+  // 아래 로직에서 안전하게 재사용할 수 있도록 별도 변수로 고정한다.
   const actualRootElement = actualRoot;
   const sourceEditorElement = sourceEditor;
   const htmlModeButtonElement = htmlModeButton;
@@ -117,6 +129,7 @@ function setupDemo(): void {
     document.querySelectorAll<HTMLButtonElement>(QUICK_TAG_BUTTON_SELECTOR),
   );
 
+  // 초기 실제 DOM을 읽어 첫 번째 상태(v1)를 만든다.
   const initialState = createStateFromElement(readSingleRootElement(actualRootElement));
   let sourceMode: SourceMode = 'html';
   let committedState = initialState;
@@ -127,6 +140,7 @@ function setupDemo(): void {
   let lastPatches: VNodePatch[] = [];
   let draftError: string | null = null;
 
+  // 첫 로딩 시에는 실제 영역을 한 번 정규화해서 이후 patch path가 흔들리지 않게 만든다.
   mountVNode(actualRootElement, initialState.vnode);
   renderSourceEditor(sourceEditorElement, sourceMode, draftState);
   renderHistoryTabs(historyTabsElement, history, historyIndex, moveToHistoryIndex);
@@ -151,6 +165,8 @@ function setupDemo(): void {
     draftError !== null,
   );
 
+  // 빠른 태그 버튼은 현재 draft state의 루트 자식 뒤에 새 노드를 추가한다.
+  // 즉시 source 텍스트를 다시 그려 주기 때문에 HTML / VDOM 모드 모두 같은 결과를 본다.
   for (const quickTagButton of quickTagButtons) {
     quickTagButton.addEventListener('click', () => {
       const tag = readQuickInsertTag(quickTagButton.dataset.tag);
@@ -164,11 +180,13 @@ function setupDemo(): void {
         return;
       }
 
+      // 빠른 태그는 루트 아래 자식 추가를 전제로 하므로 root가 element여야 한다.
       if (isElementNode(draftState.vnode) === false) {
         statusTextElement.textContent = '빠른 태그 추가는 element root에서만 사용할 수 있습니다.';
         return;
       }
 
+      // 새 자식을 VDOM 기준으로 추가한 뒤 다시 HTML/VDOM 텍스트를 동기화한다.
       draftState = createStateFromVNode({
         ...draftState.vnode,
         children: draftState.vnode.children.concat(
@@ -183,6 +201,8 @@ function setupDemo(): void {
     });
   }
 
+  // 사용자가 source를 수정할 때마다 우선 "초안 상태"만 갱신한다.
+  // 실제 DOM 반영은 Patch 버튼을 눌렀을 때만 일어난다.
   sourceEditorElement.addEventListener('input', () => {
     const result = readStateFromSource(sourceMode, sourceEditorElement.value);
 
@@ -220,15 +240,20 @@ function setupDemo(): void {
       return;
     }
 
+    // 실제로 화면에 반영된 committedState와 현재 초안 draftState를 비교한다.
     const patches = diffVNode(committedState.vnode, draftState.vnode);
 
     lastPatches = patches;
     renderDiffOutput(diffOutputElement, lastPatches);
 
     if (patches.length > 0) {
+      // patch가 하나라도 있으면 실제 DOM에 적용한 뒤,
+      // 적용 결과를 다시 읽어 committedState를 최신 DOM 기준으로 정규화한다.
       applyPatches(actualRootElement, patches);
       committedState = createStateFromElement(readSingleRootElement(actualRootElement));
       draftState = committedState;
+
+      // 새 상태가 확정되었으므로 forward history를 잘라내고 새 버전을 쌓는다.
       history = history.slice(0, historyIndex + 1);
       history.push({
         label: `v${nextVersion}`,
@@ -238,6 +263,7 @@ function setupDemo(): void {
       nextVersion += 1;
       renderHistoryTabs(historyTabsElement, history, historyIndex, moveToHistoryIndex);
     } else {
+      // 변경이 없더라도 직렬화 포맷은 한번 정리해 둔다.
       draftState = createStateFromVNode(draftState.vnode);
     }
 
@@ -266,6 +292,7 @@ function setupDemo(): void {
     );
   });
 
+  // reset은 이 브랜치에서 만든 history / diff / source 상태를 모두 초기 샘플로 되돌린다.
   resetButtonElement.addEventListener('click', () => {
     sourceMode = 'html';
     mountVNode(actualRootElement, initialState.vnode);
@@ -317,6 +344,8 @@ function setupDemo(): void {
     moveToHistoryIndex(historyIndex + 1);
   });
 
+  // HTML/VDOM 탭 전환은 현재 draftState를 서로 다른 텍스트 표현으로 보여주는 역할만 한다.
+  // source에 파싱 오류가 있으면 다른 표현으로 안전하게 변환할 수 없으므로 막아 둔다.
   function switchSourceMode(nextMode: SourceMode): void {
     if (sourceMode === nextMode) {
       return;
@@ -332,6 +361,8 @@ function setupDemo(): void {
     renderModeButtons(htmlModeButtonElement, vdomModeButtonElement, sourceMode);
   }
 
+  // history 이동도 결국 "이전 committedState -> 선택한 state"에 대한 diff를 만들고
+  // 그 patch를 실제 DOM에 적용하는 흐름으로 동작한다.
   function moveToHistoryIndex(nextIndex: number): void {
     if (nextIndex < 0 || nextIndex >= history.length || nextIndex === historyIndex) {
       return;
@@ -371,6 +402,7 @@ function setupDemo(): void {
   }
 }
 
+// 현재 모드에 맞는 source 텍스트를 textarea에 그린다.
 function renderSourceEditor(
   sourceEditor: HTMLTextAreaElement,
   sourceMode: SourceMode,
@@ -381,6 +413,7 @@ function renderSourceEditor(
     : draftState.vdomText;
 }
 
+// 선택된 모드를 버튼의 data-active로 표시한다.
 function renderModeButtons(
   htmlModeButton: HTMLButtonElement,
   vdomModeButton: HTMLButtonElement,
@@ -390,6 +423,7 @@ function renderModeButtons(
   vdomModeButton.dataset.active = String(sourceMode === 'vdom');
 }
 
+// 저장된 history를 pill 버튼 목록으로 다시 그린다.
 function renderHistoryTabs(
   historyRoot: Element,
   history: HistoryEntry[],
@@ -412,6 +446,7 @@ function renderHistoryTabs(
   }
 }
 
+// 상단 상태 줄과 Viewer 메타 정보를 한 번에 갱신한다.
 function renderStatus(
   statusText: Element,
   historyText: Element,
@@ -428,6 +463,7 @@ function renderStatus(
   patchCount.textContent = `${patchLength} patches`;
 }
 
+// 현재 history 위치와 파싱 오류 유무에 따라 버튼 활성 상태를 관리한다.
 function syncButtons(
   backButton: HTMLButtonElement,
   forwardButton: HTMLButtonElement,
@@ -441,10 +477,12 @@ function syncButtons(
   patchButton.disabled = hasError;
 }
 
+// diff 결과는 학습/검증용이므로 JSON 그대로 노출한다.
 function renderDiffOutput(diffOutput: Element, patches: VNodePatch[]): void {
   diffOutput.textContent = JSON.stringify(patches, null, 2);
 }
 
+// 버튼의 data-tag 문자열을 QuickInsertTag 유니온으로 좁혀서 안전하게 사용한다.
 function readQuickInsertTag(value: string | undefined): QuickInsertTag | null {
   if (value === undefined) {
     return null;
@@ -453,6 +491,8 @@ function readQuickInsertTag(value: string | undefined): QuickInsertTag | null {
   return QUICK_INSERT_TAGS.find((tag) => tag === value) ?? null;
 }
 
+// 빠른 삽입 버튼이 눌렸을 때 실제로 추가할 VNode 템플릿을 만든다.
+// article은 diff 실험에 바로 쓸 수 있도록 key와 viewer-card class를 기본 포함한다.
 function createQuickInsertVNode(
   tag: QuickInsertTag,
   rootVNode: Extract<VNode, { type: 'element' }>,
@@ -481,6 +521,8 @@ function createQuickInsertVNode(
   });
 }
 
+// article quick insert에서 사용할 다음 data-key 값을 생성한다.
+// 현재 트리에 이미 존재하는 article-1, article-2 ... 형식을 피해서 충돌을 막는다.
 function createNextArticleKey(rootVNode: Extract<VNode, { type: 'element' }>): string {
   const usedKeys = new Set<string>();
 
@@ -495,6 +537,7 @@ function createNextArticleKey(rootVNode: Extract<VNode, { type: 'element' }>): s
   return `article-${index}`;
 }
 
+// 트리를 순회하면서 현재 사용 중인 key를 모두 모은다.
 function collectVNodeKeys(vnode: VNode, keys: Set<string>): void {
   if (isElementNode(vnode) === false) {
     return;
@@ -509,6 +552,8 @@ function collectVNodeKeys(vnode: VNode, keys: Set<string>): void {
   }
 }
 
+// 현재 source 모드에 맞게 문자열을 읽어 DemoState로 변환한다.
+// 파싱 실패는 throw 대신 Error 객체로 돌려줘 이벤트 핸들러가 쉽게 처리하게 한다.
 function readStateFromSource(
   sourceMode: SourceMode,
   sourceText: string,
@@ -524,10 +569,12 @@ function readStateFromSource(
   }
 }
 
+// HTML source 문자열을 template에 넣어 파싱한 뒤 DemoState로 바꾼다.
 function createStateFromHtml(sourceHtml: string): DemoState {
   return createStateFromElement(parseSingleRootHtml(sourceHtml));
 }
 
+// VDOM 탭의 JSON 문자열을 EditableVNode 구조로 읽은 뒤 실제 VNode로 복원한다.
 function createStateFromVdomText(vdomText: string): DemoState {
   const parsed = JSON.parse(vdomText) as unknown;
   const vnode = parseEditableVNode(parsed, 'root');
@@ -535,10 +582,12 @@ function createStateFromVdomText(vdomText: string): DemoState {
   return createStateFromVNode(vnode);
 }
 
+// 실제 DOM Element를 읽어서 DemoState로 바꾼다.
 function createStateFromElement(element: Element): DemoState {
   return createStateFromVNode(createVNodeFromElement(element));
 }
 
+// 하나의 VNode를 HTML 문자열, VDOM 객체, 편집용 JSON 텍스트 세 형태로 정리한다.
 function createStateFromVNode(vnode: VNode): DemoState {
   return {
     html: serializeVNodeToHtml(vnode),
@@ -547,6 +596,8 @@ function createStateFromVNode(vnode: VNode): DemoState {
   };
 }
 
+// 사용자가 입력한 HTML source는 공백/주석을 제외하고
+// 반드시 루트 element 하나만 가지도록 강제한다.
 function parseSingleRootHtml(sourceHtml: string): Element {
   const normalizedHtml = sourceHtml.trim();
 
@@ -577,6 +628,7 @@ function parseSingleRootHtml(sourceHtml: string): Element {
   return rootNodes[0];
 }
 
+// 실제 DOM 출력 영역도 루트 element 하나만 가진다는 전제 위에서 동작한다.
 function readSingleRootElement(root: Element): Element {
   const element = root.firstElementChild;
 
@@ -587,6 +639,7 @@ function readSingleRootElement(root: Element): Element {
   return element;
 }
 
+// VNode를 JSON 편집기에서 다루기 쉬운 단순 객체 구조로 바꾼다.
 function toEditableVNode(vnode: VNode): EditableVNode {
   if (vnode.type === 'text') {
     return {
@@ -604,6 +657,7 @@ function toEditableVNode(vnode: VNode): EditableVNode {
   };
 }
 
+// JSON에서 읽은 값을 실제 VNode 구조로 검증하며 복원한다.
 function parseEditableVNode(value: unknown, path: string): VNode {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error(`${path}는 object 형태의 VDOM node여야 합니다.`);
@@ -634,6 +688,7 @@ function parseEditableVNode(value: unknown, path: string): VNode {
   throw new Error(`${path}.type은 "element" 또는 "text"여야 합니다.`);
 }
 
+// key는 string 또는 null만 허용한다.
 function normalizeEditableKey(
   key: unknown,
   path: string,
@@ -649,6 +704,7 @@ function normalizeEditableKey(
   return key;
 }
 
+// props는 string 값만 가지는 평평한 object만 허용한다.
 function normalizeEditableProps(
   props: unknown,
   path: string,
@@ -674,6 +730,7 @@ function normalizeEditableProps(
   return nextProps;
 }
 
+// children 배열을 재귀적으로 검사하며 VNode 배열로 변환한다.
 function normalizeEditableChildren(
   children: unknown,
   path: string,
@@ -691,6 +748,8 @@ function normalizeEditableChildren(
   );
 }
 
+// VNode를 다시 HTML 문자열로 직렬화한다.
+// 데모에서는 source 편집기의 기본 포맷을 일정하게 유지하기 위해 이 함수를 사용한다.
 function serializeVNodeToHtml(vnode: VNode, depth = 0): string {
   const indent = '  '.repeat(depth);
 
@@ -723,6 +782,7 @@ function serializeVNodeToHtml(vnode: VNode, depth = 0): string {
   ].join('\n');
 }
 
+// text node 직렬화 시 HTML 예약 문자를 이스케이프한다.
 function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -730,6 +790,7 @@ function escapeHtml(value: string): string {
     .replaceAll('>', '&gt;');
 }
 
+// attribute 값은 text 이스케이프에 더해 큰따옴표도 추가로 처리한다.
 function escapeAttribute(value: string): string {
   return escapeHtml(value).replaceAll('"', '&quot;');
 }

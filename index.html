@@ -1,106 +1,107 @@
 <!doctype html>
 <html lang="ko">
-  <head>
-    <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1"
-    />
-    <title>Virtual DOM + Diff</title>
-    <link rel="stylesheet" href="./demo.css" />
-  </head>
-  <body>
-    <div class="app-shell">
-      <header class="app-header">
-        <h1>Virtual DOM + Diff</h1>
-        <div class="action-row">
-          <button id="patch-button" class="button button-primary" type="button">Patch</button>
-          <button id="history-back-button" class="button" type="button">뒤로가기</button>
-          <button id="history-forward-button" class="button" type="button">앞으로가기</button>
-          <button id="reset-button" class="button button-muted" type="button">Reset</button>
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mini-React</title>
+  <link rel="stylesheet" href="./demo.css" />
+</head>
+
+<body>
+  <div class="app-shell">
+    <!-- 상단 헤더: 데모 제목, patch 관련 제어 버튼, 상태 문구를 보여준다. -->
+    <header class="app-header">
+      <h1>Virtual DOM + Diff</h1>
+      <div class="action-row">
+        <button id="patch-button" class="button button-primary" type="button">Patch</button>
+        <button id="history-back-button" class="button" type="button">뒤로가기</button>
+        <button id="history-forward-button" class="button" type="button">앞으로가기</button>
+        <button id="reset-button" class="button button-muted" type="button">Reset</button>
+      </div>
+      <p id="status-text" class="status-line" aria-live="polite"></p>
+    </header>
+
+    <main class="workspace">
+      <!-- Source 패널: HTML/VDOM source를 직접 편집하고 history를 이동하는 작업 영역 -->
+      <section class="panel source-panel" aria-label="Source">
+        <div class="panel-header">
+          <div>
+            <h2>Source</h2>
+            <p class="panel-description">
+              HTML나 VDOM을 변경하고, 위 버튼을 눌러 과거 source를 다시 볼 수 있습니다.
+            </p>
+          </div>
+          <div class="mode-toggle">
+            <button id="html-mode-button" class="mode-button" type="button">HTML</button>
+            <button id="vdom-mode-button" class="mode-button" type="button">VDOM</button>
+          </div>
         </div>
-        <p id="status-text" class="status-line" aria-live="polite"></p>
-      </header>
 
-      <main class="workspace">
-        <section class="panel source-panel" aria-label="Source">
-          <div class="panel-header">
-            <div>
-              <h2>Source</h2>
-              <p class="panel-description">
-                HTML나 VDOM을 변경하고, 위 버튼을 눌러 과거 source를 다시 볼 수 있습니다.
-              </p>
-            </div>
-            <div class="mode-toggle">
-              <button id="html-mode-button" class="mode-button" type="button">HTML</button>
-              <button id="vdom-mode-button" class="mode-button" type="button">VDOM</button>
-            </div>
+        <div id="history-tabs" class="history-tabs" aria-label="State history"></div>
+
+        <!-- 자주 쓰는 태그를 source 루트에 빠르게 추가하기 위한 버튼 묶음 -->
+        <div class="quick-tags" aria-label="빠른 태그 추가">
+          <span class="quick-tags-label">Quick Tags</span>
+          <button class="quick-tag-button" data-tag="h1" type="button">h1</button>
+          <button class="quick-tag-button" data-tag="h2" type="button">h2</button>
+          <button class="quick-tag-button" data-tag="h3" type="button">h3</button>
+          <button class="quick-tag-button" data-tag="article" type="button">article</button>
+        </div>
+
+        <textarea id="source-editor" class="source-editor" spellcheck="false" aria-label="Source editor"></textarea>
+        <p id="error-text" class="error-line" aria-live="polite"></p>
+      </section>
+
+      <!-- Viewer 패널: patch가 적용된 실제 DOM 결과를 확인하는 영역 -->
+      <section class="panel viewer-panel" aria-label="Viewer">
+        <div class="panel-header">
+          <div>
+            <h2>Viewer</h2>
+            <p class="panel-description">
+              현재 source가 patch된 결과 DOM이 여기에 반영됩니다.
+            </p>
           </div>
-
-          <div id="history-tabs" class="history-tabs" aria-label="State history"></div>
-
-          <div class="quick-tags" aria-label="빠른 태그 추가">
-            <span class="quick-tags-label">Quick Tags</span>
-            <button class="quick-tag-button" data-tag="h1" type="button">h1</button>
-            <button class="quick-tag-button" data-tag="h2" type="button">h2</button>
-            <button class="quick-tag-button" data-tag="h3" type="button">h3</button>
-            <button class="quick-tag-button" data-tag="article" type="button">article</button>
-          </div>
-
-          <textarea
-            id="source-editor"
-            class="source-editor"
-            spellcheck="false"
-            aria-label="Source editor"
-          ></textarea>
-          <p id="error-text" class="error-line" aria-live="polite"></p>
-        </section>
-
-        <section class="panel viewer-panel" aria-label="Viewer">
-          <div class="panel-header">
-            <div>
-              <h2>Viewer</h2>
-              <p class="panel-description">
-                현재 source가 patch된 결과 DOM이 여기에 반영됩니다.
-              </p>
+          <div class="viewer-meta">
+            <div class="meta-chip">
+              <span>State</span>
+              <strong id="history-text">v1 / 1</strong>
             </div>
-            <div class="viewer-meta">
-              <div class="meta-chip">
-                <span>State</span>
-                <strong id="history-text">v1 / 1</strong>
-              </div>
-              <div class="meta-chip">
-                <span>Patch</span>
-                <strong id="patch-count">0 patches</strong>
-              </div>
+            <div class="meta-chip">
+              <span>Patch</span>
+              <strong id="patch-count">0 patches</strong>
             </div>
           </div>
+        </div>
 
-          <div id="actual-root" class="viewer-stage">
-            <section class="viewer-list" data-key="stack">
-              <article class="viewer-card" data-key="alpha">
-                <h3>Alpha</h3>
-                <p>첫 번째 카드입니다.</p>
-              </article>
-              <article class="viewer-card" data-key="beta">
-                <h3>Beta</h3>
-                <p>두 번째 카드입니다.</p>
-              </article>
-              <article class="viewer-card" data-key="gamma">
-                <h3>Gamma</h3>
-                <p>세 번째 카드입니다.</p>
-              </article>
-            </section>
-          </div>
+        <!-- 실제 DOM 출력 영역. 카드가 많아져도 이 컨테이너 안에서만 스크롤되도록 높이를 고정한다. -->
+        <div id="actual-root" class="viewer-stage">
+          <section class="viewer-list" data-key="stack">
+            <article class="viewer-card" data-key="alpha">
+              <h3>Alpha</h3>
+              <p>첫 번째 카드입니다.</p>
+            </article>
+            <article class="viewer-card" data-key="beta">
+              <h3>Beta</h3>
+              <p>두 번째 카드입니다.</p>
+            </article>
+            <article class="viewer-card" data-key="gamma">
+              <h3>Gamma</h3>
+              <p>세 번째 카드입니다.</p>
+            </article>
+          </section>
+        </div>
 
-          <details class="diff-panel">
-            <summary>Diff Result</summary>
-            <pre id="diff-output" class="diff-output">[]</pre>
-          </details>
-        </section>
-      </main>
-    </div>
+        <!-- 마지막 diff 결과를 필요할 때만 펼쳐 볼 수 있도록 details로 감쌌다. -->
+        <details class="diff-panel">
+          <summary>Diff Result</summary>
+          <pre id="diff-output" class="diff-output">[]</pre>
+        </details>
+      </section>
+    </main>
+  </div>
 
-    <script type="module" src="./dist/demo.js"></script>
-  </body>
+  <script type="module" src="./dist/demo.js"></script>
+</body>
+
 </html>

@@ -1,5 +1,5 @@
 import { diffVNode, type VNodePatch } from './vdom/diff.js';
-import { createElementNode, type ElementNodeProps } from './vdom/element-node.js';
+import { createElementNode, isElementNode, type ElementNodeProps } from './vdom/element-node.js';
 import { createVNodeFromElement } from './vdom/from-dom.js';
 import { mountVNode, applyPatches } from './vdom/dom.js';
 import type { VNode } from './vdom/node.js';
@@ -19,6 +19,11 @@ const ERROR_TEXT_ID = 'error-text';
 const HISTORY_TEXT_ID = 'history-text';
 const PATCH_COUNT_ID = 'patch-count';
 const DIFF_OUTPUT_ID = 'diff-output';
+const QUICK_TAG_BUTTON_SELECTOR = '.quick-tag-button';
+
+const QUICK_INSERT_TAGS = ['h1', 'h2', 'h3', 'article'] as const;
+
+type QuickInsertTag = (typeof QUICK_INSERT_TAGS)[number];
 
 type SourceMode = 'html' | 'vdom';
 
@@ -108,6 +113,9 @@ function setupDemo(): void {
   const historyTextElement = historyText;
   const patchCountElement = patchCount;
   const diffOutputElement = diffOutput;
+  const quickTagButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>(QUICK_TAG_BUTTON_SELECTOR),
+  );
 
   const initialState = createStateFromElement(readSingleRootElement(actualRootElement));
   let sourceMode: SourceMode = 'html';
@@ -142,6 +150,38 @@ function setupDemo(): void {
     history.length,
     draftError !== null,
   );
+
+  for (const quickTagButton of quickTagButtons) {
+    quickTagButton.addEventListener('click', () => {
+      const tag = readQuickInsertTag(quickTagButton.dataset.tag);
+
+      if (tag === null) {
+        return;
+      }
+
+      if (draftError !== null) {
+        statusTextElement.textContent = '현재 source 오류를 먼저 수정한 뒤 빠른 태그를 추가하세요.';
+        return;
+      }
+
+      if (isElementNode(draftState.vnode) === false) {
+        statusTextElement.textContent = '빠른 태그 추가는 element root에서만 사용할 수 있습니다.';
+        return;
+      }
+
+      draftState = createStateFromVNode({
+        ...draftState.vnode,
+        children: draftState.vnode.children.concat(
+          createQuickInsertVNode(tag, draftState.vnode),
+        ),
+      });
+
+      renderSourceEditor(sourceEditorElement, sourceMode, draftState);
+      errorTextElement.textContent = '';
+      statusTextElement.textContent =
+        `${tag} 태그를 source 루트의 마지막 자식으로 추가했습니다.`;
+    });
+  }
 
   sourceEditorElement.addEventListener('input', () => {
     const result = readStateFromSource(sourceMode, sourceEditorElement.value);
@@ -403,6 +443,70 @@ function syncButtons(
 
 function renderDiffOutput(diffOutput: Element, patches: VNodePatch[]): void {
   diffOutput.textContent = JSON.stringify(patches, null, 2);
+}
+
+function readQuickInsertTag(value: string | undefined): QuickInsertTag | null {
+  if (value === undefined) {
+    return null;
+  }
+
+  return QUICK_INSERT_TAGS.find((tag) => tag === value) ?? null;
+}
+
+function createQuickInsertVNode(
+  tag: QuickInsertTag,
+  rootVNode: Extract<VNode, { type: 'element' }>,
+): VNode {
+  if (tag === 'article') {
+    const nextKey = createNextArticleKey(rootVNode);
+
+    return createElementNode('article', {
+      key: nextKey,
+      props: {
+        class: 'viewer-card',
+      },
+      children: [
+        createElementNode('h3', {
+          children: [createTextNode(`Article ${nextKey}`)],
+        }),
+        createElementNode('p', {
+          children: [createTextNode('내용을 입력하세요.')],
+        }),
+      ],
+    });
+  }
+
+  return createElementNode(tag, {
+    children: [createTextNode(`${tag.toUpperCase()} title`)],
+  });
+}
+
+function createNextArticleKey(rootVNode: Extract<VNode, { type: 'element' }>): string {
+  const usedKeys = new Set<string>();
+
+  collectVNodeKeys(rootVNode, usedKeys);
+
+  let index = 1;
+
+  while (usedKeys.has(`article-${index}`)) {
+    index += 1;
+  }
+
+  return `article-${index}`;
+}
+
+function collectVNodeKeys(vnode: VNode, keys: Set<string>): void {
+  if (isElementNode(vnode) === false) {
+    return;
+  }
+
+  if (vnode.key !== null) {
+    keys.add(vnode.key);
+  }
+
+  for (const child of vnode.children) {
+    collectVNodeKeys(child, keys);
+  }
 }
 
 function readStateFromSource(

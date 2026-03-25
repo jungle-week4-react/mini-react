@@ -1,6 +1,6 @@
 ---
 name: commit-convention
-description: Generate and review hybrid Conventional Commit messages for this repository. Use when Codex needs to suggest a commit message from code or docs changes, choose a commit type or optional scope, rewrite a vague commit title, or check whether a message follows this project's rules: English type prefix, optional scope, Korean subject and body, optional body, and English BREAKING CHANGE footer.
+description: Generate and review hybrid Conventional Commit messages for this repository. Use when Codex needs to suggest a commit message from code or docs changes, choose a commit type, rewrite a vague commit title, or check whether a message follows this project's rules: English type prefix, Korean subject and body, optional body, and English BREAKING CHANGE footer.
 ---
 
 # Commit Convention
@@ -15,9 +15,8 @@ Keep the format Conventional Commits-compatible while writing the subject and bo
 When the user provides a diff summary, follow this order:
 
 1. Infer the most accurate commit type.
-2. Add a scope only when it makes the change meaningfully clearer.
-3. Write 1-3 final commit message candidates.
-4. Add a one-line reason only when the type or scope choice is not obvious.
+2. Write 1-3 final commit message candidates.
+3. Add a one-line reason only when the type choice is not obvious.
 
 Prefer a single strong candidate over three weak variations.
 Do not run git commands, install hooks, or enforce the rule automatically.
@@ -28,13 +27,12 @@ Use one of these formats:
 
 ```text
 <type>: <한국어 제목>
-<type>(<scope>): <한국어 제목>
 ```
 
 Add a body only when the change needs rationale, impact, or caution:
 
 ```text
-<type>(<scope>): <한국어 제목>
+<type>: <한국어 제목>
 
 <한국어 본문>
 ```
@@ -61,21 +59,10 @@ BREAKING CHANGE: explain the incompatible change in English
 
 Choose the narrowest valid type. For TypeScript config, package metadata, output paths, or compiler options, prefer `build`.
 
-## Scope Guidance
+## Scope Policy
 
-Scope is optional. Use it only when it improves scanability.
-
-Prefer these scopes for this repository when they fit:
-
-- `renderer`
-- `diff`
-- `vdom`
-- `hooks`
-- `build`
-- `docs`
-
-Skip the scope for small or already obvious changes.
-Do not invent a scope if the change crosses several areas.
+Do not use scopes in commit titles for this repository.
+Let the changed files and Korean subject communicate the affected area.
 
 ## Subject Rules
 
@@ -103,21 +90,21 @@ Explain why the change was made or what constraint it handles.
 Use patterns like these:
 
 ```text
-feat(renderer): DOM 렌더러 초기 구조를 추가
+feat: DOM 렌더러 초기 구조를 추가
 
-fix(diff): 자식 노드 재정렬 시 인덱스 계산 오류를 고쳐
+fix: 자식 노드 재정렬 시 인덱스 계산 오류를 고쳐
 
 docs: README에 타입스크립트 시작 방법을 정리
 
 build: TypeScript 출력 경로와 타입 선언 생성을 설정
 
-refactor(vdom): 가상 노드 생성 흐름을 단순화
+refactor: 가상 노드 생성 흐름을 단순화
 ```
 
 When body text helps, format it like this:
 
 ```text
-fix(diff): 자식 노드 재정렬 시 인덱스 계산 오류를 고쳐
+fix: 자식 노드 재정렬 시 인덱스 계산 오류를 고쳐
 
 키 비교 후 재배치 순서를 다시 계산하도록 바꿔
 중첩 목록 갱신에서 잘못된 DOM 이동이 발생하지 않게 한다
@@ -126,7 +113,7 @@ fix(diff): 자식 노드 재정렬 시 인덱스 계산 오류를 고쳐
 For breaking changes, format the footer like this:
 
 ```text
-feat(renderer): 렌더러 초기화 API를 단순화
+feat: 렌더러 초기화 API를 단순화
 
 기본 사용 흐름을 하나로 맞추기 위해 진입 함수를 통합한다
 

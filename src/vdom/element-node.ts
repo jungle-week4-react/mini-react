@@ -1,16 +1,18 @@
+import type { TextVNode } from './text-node.js';
+
 export type ElementNodeProps = Record<string, string>;
 
 export type ElementVNode = {
   type: 'element';
   tag: string;
   props: ElementNodeProps;
-  children: unknown[];
+  children: Array<ElementVNode | TextVNode>;
 };
 
 export const createElementNode = (
   tag: string,
   props: ElementNodeProps = {},
-  children: unknown[] = [],
+  children: Array<ElementVNode | TextVNode> = [],
 ): ElementVNode => ({
   type: 'element',
   tag,

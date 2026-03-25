@@ -37,3 +37,11 @@ type TextVNode = {
   value: string;
 };
 ```
+
+## Diff (1차)
+
+1차 diff는 두 `VNode`를 `path` 기반 patch 목록으로 비교한다.
+
+- key 기반 최적화는 하지 않는다.
+- 형제 노드 이동은 추적하지 않는다.
+- 자식 노드는 인덱스 기준으로만 비교한다.

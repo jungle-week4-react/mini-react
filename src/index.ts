@@ -1,5 +1,10 @@
 export type { VNodePatch, VNodePath } from './vdom/diff.js';
-export type { ElementNodeProps, ElementVNode } from './vdom/element-node.js';
+export type {
+  CreateElementNodeOptions,
+  ElementNodeProps,
+  ElementVNode,
+  VNodeKey,
+} from './vdom/element-node.js';
 export type { VNode } from './vdom/node.js';
 export type { TextVNode } from './vdom/text-node.js';
 export { diffVNode } from './vdom/diff.js';

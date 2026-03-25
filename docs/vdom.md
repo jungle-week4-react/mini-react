@@ -12,6 +12,7 @@ Element 노드는 태그를 표현한다.
 
 - `type`: `'element'`
 - `tag`: 태그 이름 문자열
+- `key`: 형제 노드 비교에 사용하는 식별자
 - `props`: 속성 객체
 - `children`: 자식 노드 배열
 
@@ -19,6 +20,7 @@ Element 노드는 태그를 표현한다.
 type ElementVNode = {
   type: 'element';
   tag: string;
+  key: string | null;
   props: Record<string, string>;
   children: VNode[];
 };
@@ -42,6 +44,7 @@ type TextVNode = {
 
 1차 diff는 두 `VNode`를 `path` 기반 patch 목록으로 비교한다.
 
-- key 기반 최적화는 하지 않는다.
+- 기본 비교는 자식 인덱스 기준으로 동작한다.
+- key가 안정적으로 주어진 형제 element 자식은 제한적으로 key 비교를 시도한다.
 - 형제 노드 이동은 추적하지 않는다.
-- 자식 노드는 인덱스 기준으로만 비교한다.
+- 공유 key의 순서가 바뀌면 안전하게 인덱스 비교로 되돌린다.

@@ -1,4 +1,4 @@
-import type { ElementNodeProps } from './element-node.js';
+import type { ElementNodeProps, ElementVNode } from './element-node.js';
 import type { VNode } from './node.js';
 
 export type VNodePath = number[];
@@ -66,8 +66,8 @@ function diffNode(
     return;
   }
 
-  // html 태그가 다른지 체크
-  if (prev.tag !== next.tag) {
+  // 태그가 다르거나 key가 다르면 같은 노드로 볼 수 없다.
+  if (prev.tag !== next.tag || prev.key !== next.key) {
     patches.push({
       type: 'replace',
       path: clonePath(path),
@@ -119,17 +119,31 @@ function diffProps(
   };
 }
 
-//자식 노드 비교 함수
+// 자식 노드는 keyed diff를 우선 시도하고, 조건이 맞지 않으면 index 기반 비교로 돌아간다.
 function diffChildren(
   prevChildren: VNode[],
   nextChildren: VNode[],
   parentPath: VNodePath,
   patches: VNodePatch[],
 ): void {
-  //prev랑 next 자식 길이 중 작은 값 저장
+  if (canUseKeyedDiff(prevChildren, nextChildren)) {
+    diffKeyedChildren(prevChildren, nextChildren, parentPath, patches);
+    return;
+  }
+
+  diffIndexedChildren(prevChildren, nextChildren, parentPath, patches);
+}
+
+function diffIndexedChildren(
+  prevChildren: VNode[],
+  nextChildren: VNode[],
+  parentPath: VNodePath,
+  patches: VNodePatch[],
+): void {
+  // prev랑 next 자식 길이 중 작은 값을 저장한다.
   const sharedLength = Math.min(prevChildren.length, nextChildren.length);
 
-  // 자식 노드을을 차례차례 비교
+  // 자식 노드를 같은 인덱스끼리 차례대로 비교한다.
   for (let index = 0; index < sharedLength; index += 1) {
     diffNode(
       prevChildren[index],
@@ -139,7 +153,7 @@ function diffChildren(
     );
   }
 
-  // old 노드 자식들 중 사라진게 있으면 삭제
+  // remove는 뒤에서부터 처리해야 인덱스가 덜 흔들린다.
   for (let index = prevChildren.length - 1; index >= sharedLength; index -= 1) {
     patches.push({
       type: 'remove',
@@ -147,7 +161,7 @@ function diffChildren(
     });
   }
 
-  // new 노드 자식들 중 추가된게 있으면 추가
+  // 새로 생긴 자식은 현재 next 인덱스 기준으로 insert 한다.
   for (let index = sharedLength; index < nextChildren.length; index += 1) {
     patches.push({
       type: 'insert',
@@ -157,7 +171,112 @@ function diffChildren(
   }
 }
 
-// 현재 위치 저장
+// key가 안전하게 있는 element 자식들만 keyed diff 대상으로 삼는다.
+function canUseKeyedDiff(prevChildren: VNode[], nextChildren: VNode[]): boolean {
+  if (!hasOnlyKeyedElementChildren(prevChildren)) {
+    return false;
+  }
+
+  if (!hasOnlyKeyedElementChildren(nextChildren)) {
+    return false;
+  }
+
+  if (!hasUniqueKeys(prevChildren) || !hasUniqueKeys(nextChildren)) {
+    return false;
+  }
+
+  // 현재 patch 모델에는 move가 없으므로
+  // 공유 key의 상대 순서가 바뀐 경우는 index diff로 되돌린다.
+  return !hasReorderedSharedKeys(prevChildren, nextChildren);
+}
+
+function diffKeyedChildren(
+  prevChildren: VNode[],
+  nextChildren: VNode[],
+  parentPath: VNodePath,
+  patches: VNodePatch[],
+): void {
+  const prevKeyedChildren = prevChildren as Array<ElementVNode & { key: string }>;
+  const nextKeyedChildren = nextChildren as Array<ElementVNode & { key: string }>;
+
+  const prevKeySet = new Set(prevKeyedChildren.map((child) => child.key));
+  const nextChildrenByKey = new Map(
+    nextKeyedChildren.map((child) => [child.key, child] as const),
+  );
+
+  // 같은 key를 가진 노드는 같은 노드로 보고 재귀 비교한다.
+  // path는 이전 트리 기준 위치를 유지한다.
+  for (let index = 0; index < prevKeyedChildren.length; index += 1) {
+    const prevChild = prevKeyedChildren[index];
+    const nextChild = nextChildrenByKey.get(prevChild.key);
+
+    if (nextChild !== undefined) {
+      diffNode(prevChild, nextChild, parentPath.concat(index), patches);
+    }
+  }
+
+  // 이전에는 있었지만 다음에는 사라진 key는 remove 처리한다.
+  for (let index = prevKeyedChildren.length - 1; index >= 0; index -= 1) {
+    const prevChild = prevKeyedChildren[index];
+
+    if (!nextChildrenByKey.has(prevChild.key)) {
+      patches.push({
+        type: 'remove',
+        path: parentPath.concat(index),
+      });
+    }
+  }
+
+  // 다음에 새로 등장한 key는 insert 처리한다.
+  for (let index = 0; index < nextKeyedChildren.length; index += 1) {
+    const nextChild = nextKeyedChildren[index];
+
+    if (!prevKeySet.has(nextChild.key)) {
+      patches.push({
+        type: 'insert',
+        path: parentPath.concat(index),
+        node: nextChild,
+      });
+    }
+  }
+}
+
+function hasOnlyKeyedElementChildren(
+  children: VNode[],
+): children is Array<ElementVNode & { key: string }> {
+  return children.every(
+    (child): child is ElementVNode & { key: string } =>
+      child.type === 'element' && child.key !== null,
+  );
+}
+
+function hasUniqueKeys(children: Array<ElementVNode & { key: string }>): boolean {
+  return new Set(children.map((child) => child.key)).size === children.length;
+}
+
+function hasReorderedSharedKeys(
+  prevChildren: Array<ElementVNode & { key: string }>,
+  nextChildren: Array<ElementVNode & { key: string }>,
+): boolean {
+  const nextKeySet = new Set(nextChildren.map((child) => child.key));
+  const prevKeySet = new Set(prevChildren.map((child) => child.key));
+
+  const prevSharedKeys = prevChildren
+    .map((child) => child.key)
+    .filter((key) => nextKeySet.has(key));
+
+  const nextSharedKeys = nextChildren
+    .map((child) => child.key)
+    .filter((key) => prevKeySet.has(key));
+
+  if (prevSharedKeys.length !== nextSharedKeys.length) {
+    return true;
+  }
+
+  return prevSharedKeys.some((key, index) => key !== nextSharedKeys[index]);
+}
+
+// 현재 위치를 복사해서 patch에 저장한다.
 function clonePath(path: VNodePath): VNodePath {
   return path.slice();
 }

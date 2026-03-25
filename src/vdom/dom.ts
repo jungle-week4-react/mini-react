@@ -26,6 +26,7 @@ const TEXT_CONTENT_PROP = 'nodeValue';
  * 여기서 중요한 점:
  * - render phase는 "무엇을 바꿀지 계산"하는 단계
  * - commit phase는 "계산한 변경을 실제 DOM에 적용"하는 단계
+ * - subtreeFlags가 있으면 변경 없는 subtree는 collect 단계에서 내려가지 않고 건너뛸 수 있다.
  */
 
 type CommitAction =
@@ -187,14 +188,21 @@ function collectCommitPlan(fiber: Fiber | null): {
     // child가 있으면 child로 내려가고,
     // 없으면 sibling을 찾고,
     // 그것도 없으면 부모로 올라가 sibling을 찾는다.
-    if (currentFiber.child !== null) {
+    if (currentFiber.child !== null && hasCommitEffects(currentFiber.child)) {
       currentFiber = currentFiber.child;
       continue;
     }
 
     while (currentFiber !== null) {
-      if (currentFiber.sibling !== null) {
-        currentFiber = currentFiber.sibling;
+      let sibling = currentFiber.sibling;
+
+      // subtreeFlags가 비어 있는 sibling chain은 실제 변경이 없으므로 건너뛴다.
+      while (sibling !== null && hasCommitEffects(sibling) === false) {
+        sibling = sibling.sibling;
+      }
+
+      if (sibling !== null) {
+        currentFiber = sibling;
         break;
       }
 
@@ -209,6 +217,12 @@ function collectCommitPlan(fiber: Fiber | null): {
     updateCount,
     deletionCount,
   };
+}
+
+function hasCommitEffects(fiber: Fiber): boolean {
+  return fiber.flags !== FiberFlags.NoFlags
+    || fiber.subtreeFlags !== FiberFlags.NoFlags
+    || fiber.deletions !== null;
 }
 
 function collectCommitActionsFromFiber(
@@ -290,6 +304,7 @@ function applyCommitPlan(plan: {
   // 이미 처리한 flags/deletions는 다음 렌더에 남기지 않도록 비운다.
   for (const fiber of plan.visitedFibers) {
     fiber.flags = FiberFlags.NoFlags;
+    fiber.subtreeFlags = FiberFlags.NoFlags;
     fiber.deletions = null;
   }
 }

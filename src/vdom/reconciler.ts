@@ -199,13 +199,35 @@ function completeWork(fiber: Fiber): void {
   // 순서 5.
   // 여기서는 실제 DOM 노드를 "준비"만 하고 아직 live DOM에 붙이지 않는다.
   // ROOT는 이미 container DOM을 알고 있으므로 따로 만들 일이 없다.
-  if (fiber.type === ROOT_FIBER_TYPE) {
-    return;
+  if (fiber.type !== ROOT_FIBER_TYPE) {
+    // 실제 DOM 노드 생성은 complete 단계에서 한 번만 해둔다.
+    // 아직 화면에 붙이지는 않고, commit에서 붙인다.
+    completeFiberNode(fiber);
   }
 
-  // 실제 DOM 노드 생성은 complete 단계에서 한 번만 해둔다.
-  // 아직 화면에 붙이지는 않고, commit에서 붙인다.
-  completeFiberNode(fiber);
+  // complete 시점에는 모든 자식이 이미 처리된 상태이므로
+  // 자식들이 가진 effect(flags/deletions/subtreeFlags)를 부모 subtreeFlags에 집계할 수 있다.
+  bubbleSubtreeFlags(fiber);
+}
+
+function bubbleSubtreeFlags(fiber: Fiber): void {
+  let subtreeFlags = FiberFlags.NoFlags;
+  let child = fiber.child;
+
+  while (child !== null) {
+    // 자식 자신의 변경
+    subtreeFlags |= child.flags;
+    // 자식 아래 subtree 전체의 변경
+    subtreeFlags |= child.subtreeFlags;
+    // deletions는 부모 Fiber.deletions에만 모이므로
+    // 자식이 삭제 목록을 들고 있다면 그 사실도 상위로 올려야 commit skip이 가능하다.
+    if (child.deletions !== null) {
+      subtreeFlags |= FiberFlags.Deletion;
+    }
+    child = child.sibling;
+  }
+
+  fiber.subtreeFlags = subtreeFlags;
 }
 
 function collectExistingChildren(currentFirstChild: Fiber | null): Map<string, Fiber> {

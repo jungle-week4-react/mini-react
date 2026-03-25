@@ -71,6 +71,8 @@ export type Fiber = {
   return: Fiber | null;
   // commit에서 어떤 DOM 작업을 해야 하는지 표시하는 비트마스크
   flags: FiberFlags;
+  // 자식 subtree 안에 commit할 effect가 있는지 부모가 빠르게 알기 위한 집계 비트마스크
+  subtreeFlags: FiberFlags;
   // beginWork에서 읽을 자식 VNode 배열
   updateQueue: FiberUpdateQueue | null;
   // 삭제 대상은 부모 Fiber에 모아둔다.
@@ -177,6 +179,8 @@ export function createFiber(
     return: null,
     // commit에서 어떤 작업을 해야 하는지
     flags: FiberFlags.NoFlags,
+    // 처음 생성 시점에는 아직 자식 effect를 집계하지 않았다.
+    subtreeFlags: FiberFlags.NoFlags,
     // 아직 Fiber로 바꾸지 않은 자식 VNode 목록
     updateQueue: null,
     // 삭제 대상 목록
@@ -223,6 +227,7 @@ export function createWorkInProgress(
     currentAlternate.props = props;
     currentAlternate.stateNode = current.stateNode;
     currentAlternate.flags = FiberFlags.NoFlags;
+    currentAlternate.subtreeFlags = FiberFlags.NoFlags;
     currentAlternate.updateQueue = current.updateQueue;
     currentAlternate.deletions = null;
   }

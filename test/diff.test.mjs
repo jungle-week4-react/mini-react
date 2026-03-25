@@ -19,8 +19,25 @@ test('key를 주지 않으면 기본값으로 null을 사용한다', () => {
   });
 });
 
-test('기존 props, children 시그니처도 그대로 지원한다', () => {
-  const node = createElementNode('div', { id: 'root' }, [createTextNode('hello')]);
+test('빈 문자열 key는 null로 정규화한다', () => {
+  const node = createElementNode('div', {
+    key: '',
+  });
+
+  assert.deepEqual(node, {
+    type: 'element',
+    tag: 'div',
+    key: null,
+    props: {},
+    children: [],
+  });
+});
+
+test('options 객체로 props와 children을 받는다', () => {
+  const node = createElementNode('div', {
+    props: { id: 'root' },
+    children: [createTextNode('hello')],
+  });
 
   assert.deepEqual(node, {
     type: 'element',
@@ -31,13 +48,43 @@ test('기존 props, children 시그니처도 그대로 지원한다', () => {
   });
 });
 
+test('props 안에 props, children 이름도 그대로 저장한다', () => {
+  const node = createElementNode('div', {
+    props: {
+      props: 'literal-prop',
+      children: 'literal-children',
+    },
+  });
+
+  assert.deepEqual(node, {
+    type: 'element',
+    tag: 'div',
+    key: null,
+    props: {
+      props: 'literal-prop',
+      children: 'literal-children',
+    },
+    children: [],
+  });
+});
+
 test('동일한 트리는 빈 patch 배열을 반환한다', () => {
-  const prev = createElementNode('div', { id: 'root' }, [
-    createElementNode('span', {}, [createTextNode('hello')]),
-  ]);
-  const next = createElementNode('div', { id: 'root' }, [
-    createElementNode('span', {}, [createTextNode('hello')]),
-  ]);
+  const prev = createElementNode('div', {
+    props: { id: 'root' },
+    children: [
+      createElementNode('span', {
+        children: [createTextNode('hello')],
+      }),
+    ],
+  });
+  const next = createElementNode('div', {
+    props: { id: 'root' },
+    children: [
+      createElementNode('span', {
+        children: [createTextNode('hello')],
+      }),
+    ],
+  });
 
   assert.deepEqual(diffVNode(prev, next), []);
 });
@@ -75,12 +122,20 @@ test('같은 태그여도 key가 다르면 replace 한다', () => {
 });
 
 test('중첩된 text node 변경은 path 기준 text patch로 표현한다', () => {
-  const prev = createElementNode('div', {}, [
-    createElementNode('span', {}, [createTextNode('before')]),
-  ]);
-  const next = createElementNode('div', {}, [
-    createElementNode('span', {}, [createTextNode('after')]),
-  ]);
+  const prev = createElementNode('div', {
+    children: [
+      createElementNode('span', {
+        children: [createTextNode('before')],
+      }),
+    ],
+  });
+  const next = createElementNode('div', {
+    children: [
+      createElementNode('span', {
+        children: [createTextNode('after')],
+      }),
+    ],
+  });
 
   assert.deepEqual(diffVNode(prev, next), [
     {
@@ -93,12 +148,16 @@ test('중첩된 text node 변경은 path 기준 text patch로 표현한다', () 
 
 test('같은 태그에서는 props의 set/remove 변경을 만든다', () => {
   const prev = createElementNode('div', {
-    class: 'before',
-    id: 'root',
+    props: {
+      class: 'before',
+      id: 'root',
+    },
   });
   const next = createElementNode('div', {
-    class: 'after',
-    title: 'greeting',
+    props: {
+      class: 'after',
+      title: 'greeting',
+    },
   });
 
   assert.deepEqual(diffVNode(prev, next), [
@@ -115,11 +174,15 @@ test('같은 태그에서는 props의 set/remove 변경을 만든다', () => {
 });
 
 test('새 자식이 뒤에 추가되면 insert patch를 만든다', () => {
-  const prev = createElementNode('div', {}, [createTextNode('first')]);
-  const next = createElementNode('div', {}, [
-    createTextNode('first'),
-    createTextNode('second'),
-  ]);
+  const prev = createElementNode('div', {
+    children: [createTextNode('first')],
+  });
+  const next = createElementNode('div', {
+    children: [
+      createTextNode('first'),
+      createTextNode('second'),
+    ],
+  });
 
   assert.deepEqual(diffVNode(prev, next), [
     {
@@ -131,12 +194,16 @@ test('새 자식이 뒤에 추가되면 insert patch를 만든다', () => {
 });
 
 test('사라진 자식은 뒤에서부터 remove 한다', () => {
-  const prev = createElementNode('div', {}, [
-    createTextNode('first'),
-    createTextNode('second'),
-    createTextNode('third'),
-  ]);
-  const next = createElementNode('div', {}, [createTextNode('first')]);
+  const prev = createElementNode('div', {
+    children: [
+      createTextNode('first'),
+      createTextNode('second'),
+      createTextNode('third'),
+    ],
+  });
+  const next = createElementNode('div', {
+    children: [createTextNode('first')],
+  });
 
   assert.deepEqual(diffVNode(prev, next), [
     {
@@ -238,14 +305,26 @@ test('공유 key 순서가 바뀌면 index diff로 되돌린다', () => {
 });
 
 test('text 형제 노드만 있으면 기존 index 기반 비교를 유지한다', () => {
-  const prev = createElementNode('ul', {}, [
-    createElementNode('li', {}, [createTextNode('A')]),
-    createElementNode('li', {}, [createTextNode('B')]),
-  ]);
-  const next = createElementNode('ul', {}, [
-    createElementNode('li', {}, [createTextNode('B')]),
-    createElementNode('li', {}, [createTextNode('A')]),
-  ]);
+  const prev = createElementNode('ul', {
+    children: [
+      createElementNode('li', {
+        children: [createTextNode('A')],
+      }),
+      createElementNode('li', {
+        children: [createTextNode('B')],
+      }),
+    ],
+  });
+  const next = createElementNode('ul', {
+    children: [
+      createElementNode('li', {
+        children: [createTextNode('B')],
+      }),
+      createElementNode('li', {
+        children: [createTextNode('A')],
+      }),
+    ],
+  });
 
   assert.deepEqual(diffVNode(prev, next), [
     {

@@ -23,31 +23,20 @@ export type CreateElementNodeOptions = {
 
 export function createElementNode(
   tag: string,
-  props?: ElementNodeProps,
-  children?: ElementNodeChildren,
-): ElementVNode;
-
-export function createElementNode(
-  tag: string,
-  options?: CreateElementNodeOptions,
-): ElementVNode;
-
-export function createElementNode(
-  tag: string,
-  propsOrOptions?: ElementNodeProps | CreateElementNodeOptions,
-  children?: ElementNodeChildren,
+  options: CreateElementNodeOptions = {},
 ): ElementVNode {
-  const normalizedOptions = normalizeCreateElementNodeOptions(
-    propsOrOptions,
-    children,
-  );
+  const {
+    key,
+    props = {},
+    children = [],
+  } = options;
 
   return {
     type: 'element',
     tag,
-    key: normalizedOptions.key,
-    props: normalizedOptions.props,
-    children: normalizedOptions.children,
+    key: normalizeVNodeKey(key),
+    props,
+    children,
   };
 }
 
@@ -59,36 +48,10 @@ export function isElementNode(node: unknown): node is ElementVNode {
   return (node as { type?: unknown }).type === 'element';
 }
 
-function normalizeCreateElementNodeOptions(
-  input: ElementNodeProps | CreateElementNodeOptions = {},
-  legacyChildren: ElementNodeChildren = [],
-): CreateElementNodeOptions & {
-  key: VNodeKey | null;
-  props: ElementNodeProps;
-  children: ElementNodeChildren;
-} {
-  if (hasCreateElementNodeOptionShape(input)) {
-    return {
-      key: input.key ?? null,
-      props: input.props ?? {},
-      children: input.children ?? legacyChildren,
-    };
+function normalizeVNodeKey(key: VNodeKey | null | undefined): VNodeKey | null {
+  if (key === '' || key === null || key === undefined) {
+    return null;
   }
 
-  return {
-    key: null,
-    props: input,
-    children: legacyChildren,
-  };
-}
-
-// key, props, children 중 하나라도 있으면 새 옵션 형태로 간주한다.
-function hasCreateElementNodeOptionShape(
-  value: ElementNodeProps | CreateElementNodeOptions,
-): value is CreateElementNodeOptions {
-  return (
-    Object.hasOwn(value, 'key') ||
-    Object.hasOwn(value, 'props') ||
-    Object.hasOwn(value, 'children')
-  );
+  return key;
 }

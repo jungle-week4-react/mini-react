@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import {
   createElementNode,
   isElementNode,
@@ -990,3 +991,11 @@ function waitForNextPaint(): Promise<void> {
     });
   });
 }
+=======
+export type { ElementNodeProps, ElementVNode } from './vdom/element-node.js';
+export type { VNode } from './vdom/node.js';
+export type { TextVNode } from './vdom/text-node.js';
+export { createElementNode, isElementNode } from './vdom/element-node.js';
+export { createVNodeFromElement } from './vdom/from-dom.js';
+export { createTextNode, isTextNode } from './vdom/text-node.js';
+>>>>>>> ce57f184a19528aedf1ad3aed78341ecd8fea76c

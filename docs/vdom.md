@@ -12,7 +12,10 @@ Element 노드는 태그를 표현한다.
 
 - `type`: `'element'`
 - `tag`: 태그 이름 문자열
+<<<<<<< HEAD
 - `key`: 형제 목록에서 노드 identity를 구분하는 선택적 키
+=======
+>>>>>>> ce57f184a19528aedf1ad3aed78341ecd8fea76c
 - `props`: 속성 객체
 - `children`: 자식 노드 배열
 
@@ -20,7 +23,10 @@ Element 노드는 태그를 표현한다.
 type ElementVNode = {
   type: 'element';
   tag: string;
+<<<<<<< HEAD
   key: string | null;
+=======
+>>>>>>> ce57f184a19528aedf1ad3aed78341ecd8fea76c
   props: Record<string, string>;
   children: VNode[];
 };

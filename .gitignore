@@ -1,6 +1,9 @@
 node_modules/
 dist/
 .DS_Store
+<<<<<<< HEAD
 .make/
 .playwright-cli/
 .github/
+=======
+>>>>>>> ce57f184a19528aedf1ad3aed78341ecd8fea76c

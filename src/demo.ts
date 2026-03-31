@@ -521,7 +521,7 @@ function createQuickInsertVNode(
   });
 }
 
-// article quick insert에서 사용할 다음 data-key 값을 생성한다.
+// article quick insert에서 사용할 다음 key 값을 생성한다.
 // 현재 트리에 이미 존재하는 article-1, article-2 ... 형식을 피해서 충돌을 막는다.
 function createNextArticleKey(rootVNode: Extract<VNode, { type: 'element' }>): string {
   const usedKeys = new Set<string>();
@@ -758,7 +758,7 @@ function serializeVNodeToHtml(vnode: VNode, depth = 0): string {
   }
 
   const attributes = [
-    ...(vnode.key === null ? [] : [['data-key', vnode.key] as const]),
+    ...(vnode.key === null ? [] : [['key', vnode.key] as const]),
     ...Object.entries(vnode.props),
   ];
   const openTag = attributes.length === 0

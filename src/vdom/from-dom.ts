@@ -35,10 +35,10 @@ export function createVNodeFromElement(element: Element): ElementVNode {
 }
 
 // 브라우저 DOM에서 key 역할을 하는 속성을 읽어 내부 key로 정규화한다.
-// 데모에서는 data-key를 우선 사용하고, 필요하면 legacy key도 읽는다.
+// 이제 key를 표준으로 읽고, 기존 data-key는 호환용 fallback으로만 허용한다.
 function readElementKey(element: Element): string | null {
-  const value = element.getAttribute(DATA_KEY_ATTRIBUTE_NAME)
-    ?? element.getAttribute(KEY_ATTRIBUTE_NAME);
+  const value = element.getAttribute(KEY_ATTRIBUTE_NAME)
+    ?? element.getAttribute(DATA_KEY_ATTRIBUTE_NAME);
 
   if (value !== null && value !== '') {
     return value;

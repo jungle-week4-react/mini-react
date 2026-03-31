@@ -1,21 +1,25 @@
 import type { VNodePatch } from './diff.js';
 import type { VNode } from './node.js';
 
-// 내부 VNode의 key는 브라우저 DOM에서는 data-key 속성으로 반영한다.
-const HTML_KEY_ATTRIBUTE_NAME = 'data-key';
+const KEY_ATTRIBUTE_NAME = 'key';
 
 // VNode를 실제 DOM Node로 재귀 변환한다.
 // text는 Text node로, element는 Element로 만들고 자식도 같은 방식으로 붙인다.
-export function createDomNodeFromVNode(vnode: VNode): Node {
+export function createDOMNodeFromVNode(
+  vnode: VNode,
+  domDocument?: Document,
+): Node {
+  const resolvedDocument = resolveDocument(domDocument);
+
   if (vnode.type === 'text') {
-    return document.createTextNode(vnode.value);
+    return resolvedDocument.createTextNode(vnode.value);
   }
 
-  const element = document.createElement(vnode.tag);
+  const element = resolvedDocument.createElement(vnode.tag);
 
   // key는 diff에서 같은 형제 노드를 식별하는 값이므로 DOM에도 남겨 둔다.
   if (vnode.key !== null) {
-    element.setAttribute(HTML_KEY_ATTRIBUTE_NAME, vnode.key);
+    element.setAttribute(KEY_ATTRIBUTE_NAME, vnode.key);
   }
 
   // 일반 props는 그대로 DOM attribute로 옮긴다.
@@ -25,7 +29,7 @@ export function createDomNodeFromVNode(vnode: VNode): Node {
 
   // 자식 노드도 순서대로 재귀 생성해서 붙인다.
   for (const child of vnode.children) {
-    element.append(createDomNodeFromVNode(child));
+    element.appendChild(createDOMNodeFromVNode(child, resolvedDocument));
   }
 
   return element;
@@ -34,7 +38,7 @@ export function createDomNodeFromVNode(vnode: VNode): Node {
 // container 내부를 vnode 기준으로 통째로 새로 그릴 때 사용한다.
 // 초기 렌더나 완전 초기화 시점에 주로 호출된다.
 export function mountVNode(container: Element, vnode: VNode): Node {
-  const rootNode = createDomNodeFromVNode(vnode);
+  const rootNode = createDOMNodeFromVNode(vnode, getNodeDocument(container));
 
   container.replaceChildren(rootNode);
 
@@ -58,11 +62,21 @@ function applyPatch(
   patch: VNodePatch,
 ): ChildNode | null {
   if (patch.type === 'replace') {
-    return replaceNode(container, rootNode, patch.path, createDomNodeFromVNode(patch.node));
+    return replaceNode(
+      container,
+      rootNode,
+      patch.path,
+      createDOMNodeFromVNode(patch.node, getNodeDocument(container)),
+    );
   }
 
   if (patch.type === 'insert') {
-    insertNode(container, rootNode, patch.path, createDomNodeFromVNode(patch.node));
+    insertNode(
+      container,
+      rootNode,
+      patch.path,
+      createDOMNodeFromVNode(patch.node, getNodeDocument(container)),
+    );
     return rootNode;
   }
 
@@ -192,4 +206,28 @@ function getNodeAtPath(
   }
 
   return currentNode;
+}
+
+function resolveDocument(domDocument?: Document): Document {
+  if (domDocument !== undefined) {
+    return domDocument;
+  }
+
+  if (globalThis.document !== undefined) {
+    return globalThis.document;
+  }
+
+  throw new Error('Cannot create DOM node without a Document instance');
+}
+
+function getNodeDocument(node: Node): Document {
+  if (node.ownerDocument !== null) {
+    return node.ownerDocument;
+  }
+
+  if (node.nodeType === Node.DOCUMENT_NODE) {
+    return node as Document;
+  }
+
+  throw new Error('Cannot resolve Document from the current DOM tree');
 }

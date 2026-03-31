@@ -11,6 +11,7 @@ import {
   createTextNode,
   createVNodeFromElement,
   diffVNode,
+  mountVNode,
 } from '../dist/index.js';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>');
@@ -50,6 +51,46 @@ test('createDOMNodeFromVNode는 element, props, key, children을 실제 DOM으�
   assert.equal(node.lastChild.tagName.toLowerCase(), 'span');
   assert.equal(node.lastChild.getAttribute('class'), 'label');
   assert.equal(node.lastChild.textContent, 'world');
+});
+
+test('mountVNode는 key attribute를 유지한 채 container에 루트를 마운트한다', () => {
+  const container = dom.window.document.createElement('div');
+  const vnode = createElementNode('section', {
+    key: 'root-key',
+    children: [createTextNode('hello')],
+  });
+
+  const mountedRoot = mountVNode(container, vnode);
+
+  assert.equal(container.childNodes.length, 1);
+  assert.equal(mountedRoot, container.firstChild);
+  assert.equal(mountedRoot.getAttribute('key'), 'root-key');
+  assert.equal(mountedRoot.textContent, 'hello');
+});
+
+test('createVNodeFromElement는 key attribute를 우선 읽는다', () => {
+  const element = dom.window.document.createElement('div');
+
+  element.setAttribute('key', 'new-key');
+  element.setAttribute('data-key', 'legacy-key');
+  element.setAttribute('id', 'root');
+
+  assert.deepEqual(createVNodeFromElement(element), createElementNode('div', {
+    key: 'new-key',
+    props: { id: 'root' },
+  }));
+});
+
+test('createVNodeFromElement는 legacy data-key도 fallback으로 읽는다', () => {
+  const element = dom.window.document.createElement('div');
+
+  element.setAttribute('data-key', 'legacy-key');
+  element.setAttribute('title', 'hello');
+
+  assert.deepEqual(createVNodeFromElement(element), createElementNode('div', {
+    key: 'legacy-key',
+    props: { title: 'hello' },
+  }));
 });
 
 test('props와 text patch를 실제 DOM에 반영한다', () => {

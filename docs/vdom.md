@@ -54,6 +54,7 @@ type TextVNode = {
 - `createDOMNodeFromVNode`는 `VNode`를 실제 DOM `Node`로 만든다.
 - element는 `tag`, `props`, `children`을 그대로 반영한다.
 - `key`는 내부 식별자이지만 round-trip 유지를 위해 DOM `key` attribute에도 기록한다.
+- DOM을 다시 읽을 때는 `key`를 표준으로 해석하고, 기존 `data-key`는 호환용 fallback으로만 읽는다.
 
 ## Patch 적용
 

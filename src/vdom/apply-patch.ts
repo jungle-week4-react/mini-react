@@ -1,6 +1,6 @@
 import type { VNodePatch, VNodePath } from './diff.js';
 import type { VNode } from './node.js';
-import { createDOMNodeFromVNode } from './to-dom.js';
+import { createDOMNodeFromVNode } from './dom.js';
 
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;

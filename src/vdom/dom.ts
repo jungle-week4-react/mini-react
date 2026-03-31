@@ -84,6 +84,10 @@ function applyPatch(
     return removeNode(container, rootNode, patch.path);
   }
 
+  if (patch.type === 'move') {
+    return moveNode(rootNode, patch.from, patch.to);
+  }
+
   if (patch.type === 'text') {
     const targetNode = getNodeAtPath(rootNode, patch.path);
 
@@ -189,6 +193,58 @@ function removeNode(
   return rootNode;
 }
 
+// move는 같은 부모 아래 기존 노드를 떼었다가 새 인덱스에 다시 삽입한다.
+function moveNode(
+  rootNode: ChildNode | null,
+  from: number[],
+  to: number[],
+): ChildNode | null {
+  validateMovePaths(from, to);
+
+  const parentPath = from.slice(0, -1);
+  const fromIndex = from[from.length - 1]!;
+  const toIndex = to[to.length - 1]!;
+  const parentNode = parentPath.length === 0
+    ? rootNode
+    : getNodeAtPath(rootNode, parentPath);
+
+  if (parentNode === null) {
+    throw new Error(`Cannot resolve node at path ${formatPath(parentPath)}`);
+  }
+
+  assertCanHaveChildren(parentNode, parentPath);
+
+  if (fromIndex < 0 || fromIndex >= parentNode.childNodes.length) {
+    throw new Error(
+      `Cannot move from index ${fromIndex} under path ${formatPath(parentPath)}`,
+    );
+  }
+
+  if (toIndex < 0 || toIndex >= parentNode.childNodes.length) {
+    throw new Error(
+      `Cannot move to index ${toIndex} under path ${formatPath(parentPath)}`,
+    );
+  }
+
+  if (fromIndex === toIndex) {
+    return rootNode;
+  }
+
+  const targetNode = parentNode.childNodes.item(fromIndex);
+
+  if (targetNode === null) {
+    throw new Error(`Cannot resolve node at path ${formatPath(from)}`);
+  }
+
+  parentNode.removeChild(targetNode);
+
+  const referenceNode = parentNode.childNodes.item(toIndex) ?? null;
+
+  parentNode.insertBefore(targetNode, referenceNode);
+
+  return rootNode;
+}
+
 // path 배열을 따라 내려가 실제 DOM의 특정 노드를 찾아낸다.
 // 예: [1, 0]은 루트의 두 번째 자식 아래 첫 번째 자식을 의미한다.
 function getNodeAtPath(
@@ -230,4 +286,49 @@ function getNodeDocument(node: Node): Document {
   }
 
   throw new Error('Cannot resolve Document from the current DOM tree');
+}
+
+function formatPath(path: number[]): string {
+  if (path.length === 0) {
+    return 'root';
+  }
+
+  return path.join('.');
+}
+
+function validateMovePaths(from: number[], to: number[]): void {
+  if (from.length === 0 || to.length === 0) {
+    throw new Error('Cannot move the root node');
+  }
+
+  if (from.length !== to.length) {
+    throw new Error(
+      `Cannot move nodes between different depths: ${formatPath(from)} -> ${formatPath(to)}`,
+    );
+  }
+
+  const fromParentPath = from.slice(0, -1);
+  const toParentPath = to.slice(0, -1);
+
+  if (pathsEqual(fromParentPath, toParentPath) === false) {
+    throw new Error(
+      `Cannot move nodes across different parents: ${formatPath(from)} -> ${formatPath(to)}`,
+    );
+  }
+}
+
+function pathsEqual(left: number[], right: number[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((value, index) => value === right[index]);
+}
+
+function assertCanHaveChildren(node: Node, path: number[]): void {
+  if (node.nodeType === Node.TEXT_NODE) {
+    throw new Error(
+      `Cannot move children within a text node at path ${formatPath(path)}`,
+    );
+  }
 }

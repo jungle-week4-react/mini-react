@@ -264,7 +264,7 @@ test('공유 key 순서가 유지되면 같은 key끼리 비교한다', () => {
   ]);
 });
 
-test('공유 key 순서가 바뀌면 index diff로 되돌린다', () => {
+test('같은 key 집합의 순서가 바뀌면 move patch를 만든다', () => {
   const prev = createElementNode('ul', {
     children: [
       createElementNode('li', {
@@ -292,14 +292,149 @@ test('공유 key 순서가 바뀌면 index diff로 되돌린다', () => {
 
   assert.deepEqual(diffVNode(prev, next), [
     {
+      type: 'move',
+      from: [1],
+      to: [0],
+    },
+  ]);
+});
+
+test('여러 keyed 형제를 재정렬할 때 deterministic한 move patch를 만든다', () => {
+  const prev = createElementNode('ul', {
+    children: [
+      createElementNode('li', {
+        key: 'a',
+        children: [createTextNode('A')],
+      }),
+      createElementNode('li', {
+        key: 'b',
+        children: [createTextNode('B')],
+      }),
+      createElementNode('li', {
+        key: 'c',
+        children: [createTextNode('C')],
+      }),
+      createElementNode('li', {
+        key: 'd',
+        children: [createTextNode('D')],
+      }),
+    ],
+  });
+  const next = createElementNode('ul', {
+    children: [
+      createElementNode('li', {
+        key: 'd',
+        children: [createTextNode('D')],
+      }),
+      createElementNode('li', {
+        key: 'b',
+        children: [createTextNode('B')],
+      }),
+      createElementNode('li', {
+        key: 'a',
+        children: [createTextNode('A')],
+      }),
+      createElementNode('li', {
+        key: 'c',
+        children: [createTextNode('C')],
+      }),
+    ],
+  });
+
+  assert.deepEqual(diffVNode(prev, next), [
+    {
+      type: 'move',
+      from: [3],
+      to: [0],
+    },
+    {
+      type: 'move',
+      from: [2],
+      to: [1],
+    },
+  ]);
+});
+
+test('move 후 같은 key의 세부 변경은 최종 인덱스 기준 path를 사용한다', () => {
+  const prev = createElementNode('ul', {
+    children: [
+      createElementNode('li', {
+        key: 'a',
+        children: [createTextNode('A')],
+      }),
+      createElementNode('li', {
+        key: 'b',
+        children: [createTextNode('before')],
+      }),
+    ],
+  });
+  const next = createElementNode('ul', {
+    children: [
+      createElementNode('li', {
+        key: 'b',
+        children: [createTextNode('after')],
+      }),
+      createElementNode('li', {
+        key: 'a',
+        children: [createTextNode('A')],
+      }),
+    ],
+  });
+
+  assert.deepEqual(diffVNode(prev, next), [
+    {
+      type: 'move',
+      from: [1],
+      to: [0],
+    },
+    {
+      type: 'text',
+      path: [0, 0],
+      value: 'after',
+    },
+  ]);
+});
+
+test('key 집합이 달라진 reorder는 기존 index diff로 되돌린다', () => {
+  const prev = createElementNode('ul', {
+    children: [
+      createElementNode('li', {
+        key: 'a',
+        children: [createTextNode('A')],
+      }),
+      createElementNode('li', {
+        key: 'b',
+        children: [createTextNode('B')],
+      }),
+    ],
+  });
+  const next = createElementNode('ul', {
+    children: [
+      createElementNode('li', {
+        key: 'x',
+        children: [createTextNode('X')],
+      }),
+      createElementNode('li', {
+        key: 'b',
+        children: [createTextNode('B')],
+      }),
+      createElementNode('li', {
+        key: 'a',
+        children: [createTextNode('A')],
+      }),
+    ],
+  });
+
+  assert.deepEqual(diffVNode(prev, next), [
+    {
       type: 'replace',
       path: [0],
       node: next.children[0],
     },
     {
-      type: 'replace',
-      path: [1],
-      node: next.children[1],
+      type: 'insert',
+      path: [2],
+      node: next.children[2],
     },
   ]);
 });

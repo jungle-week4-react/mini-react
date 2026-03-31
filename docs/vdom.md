@@ -46,8 +46,8 @@ type TextVNode = {
 
 - 기본 비교는 자식 인덱스 기준으로 동작한다.
 - key가 안정적으로 주어진 형제 element 자식은 제한적으로 key 비교를 시도한다.
-- 형제 노드 이동은 추적하지 않는다.
-- 공유 key의 순서가 바뀌면 안전하게 인덱스 비교로 되돌린다.
+- fully keyed, unique key 형제에서 이전/다음 key 집합이 같으면 reorder를 `move` patch로 표현한다.
+- key 집합이 달라진 reorder나 mixed/non-keyed 형제는 여전히 인덱스 비교로 되돌린다.
 
 ## DOM 생성
 
@@ -60,4 +60,5 @@ type TextVNode = {
 
 - `applyPatch`와 `applyPatches`는 `VNodePatch`를 실제 DOM subtree에 순서대로 적용한다.
 - patch의 `path`는 현재 관리 중인 subtree의 `childNodes[index]` 기준으로 해석한다.
+- `move` patch는 같은 부모 아래에서만 허용되며 `{ type: 'move', from, to }` 형태를 사용한다.
 - 잘못된 path나 대상 타입 불일치는 무시하지 않고 에러로 처리한다.

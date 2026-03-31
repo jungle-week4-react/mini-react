@@ -6,6 +6,7 @@ import { JSDOM } from 'jsdom';
 import {
   applyPatch,
   applyPatches,
+  applyContainerPatches,
   createDOMNodeFromVNode,
   createElementNode,
   createTextNode,
@@ -188,6 +189,124 @@ test('공유 key 순서가 유지되면 keyed insert와 text patch를 함께 반
   assert.deepEqual(createVNodeFromElement(patchedRoot), next);
 });
 
+test('move patch를 실제 DOM에 반영하고 기존 노드 identity를 유지한다', () => {
+  const prev = createElementNode('ul', {
+    children: [
+      createElementNode('li', {
+        key: 'a',
+        children: [createTextNode('A')],
+      }),
+      createElementNode('li', {
+        key: 'b',
+        children: [createTextNode('B')],
+      }),
+      createElementNode('li', {
+        key: 'c',
+        children: [createTextNode('C')],
+      }),
+    ],
+  });
+  const next = createElementNode('ul', {
+    children: [
+      createElementNode('li', {
+        key: 'b',
+        children: [createTextNode('B')],
+      }),
+      createElementNode('li', {
+        key: 'a',
+        children: [createTextNode('A')],
+      }),
+      createElementNode('li', {
+        key: 'c',
+        children: [createTextNode('C')],
+      }),
+    ],
+  });
+
+  const root = createDOMNodeFromVNode(prev, dom.window.document);
+  const movedNode = root.childNodes.item(1);
+  const patchedRoot = applyPatch(root, {
+    type: 'move',
+    from: [1],
+    to: [0],
+  });
+
+  assert.equal(patchedRoot, root);
+  assert.equal(patchedRoot.firstChild, movedNode);
+  assert.deepEqual(createVNodeFromElement(patchedRoot), next);
+});
+
+test('keyed reorder와 text patch를 함께 적용해도 DOM identity를 유지한다', () => {
+  const prev = createElementNode('ul', {
+    children: [
+      createElementNode('li', {
+        key: 'a',
+        children: [createTextNode('A')],
+      }),
+      createElementNode('li', {
+        key: 'b',
+        children: [createTextNode('before')],
+      }),
+    ],
+  });
+  const next = createElementNode('ul', {
+    children: [
+      createElementNode('li', {
+        key: 'b',
+        children: [createTextNode('after')],
+      }),
+      createElementNode('li', {
+        key: 'a',
+        children: [createTextNode('A')],
+      }),
+    ],
+  });
+
+  const root = createDOMNodeFromVNode(prev, dom.window.document);
+  const movedNode = root.childNodes.item(1);
+  const patchedRoot = applyPatches(root, diffVNode(prev, next));
+
+  assert.equal(patchedRoot.firstChild, movedNode);
+  assert.deepEqual(createVNodeFromElement(patchedRoot), next);
+});
+
+test('container patch 적용기에서도 move patch를 반영한다', () => {
+  const container = dom.window.document.createElement('div');
+  const prev = createElementNode('ul', {
+    children: [
+      createElementNode('li', {
+        key: 'a',
+        children: [createTextNode('A')],
+      }),
+      createElementNode('li', {
+        key: 'b',
+        children: [createTextNode('B')],
+      }),
+    ],
+  });
+  const next = createElementNode('ul', {
+    children: [
+      createElementNode('li', {
+        key: 'b',
+        children: [createTextNode('B')],
+      }),
+      createElementNode('li', {
+        key: 'a',
+        children: [createTextNode('A')],
+      }),
+    ],
+  });
+
+  const root = mountVNode(container, prev);
+  const movedNode = root.childNodes.item(1);
+
+  applyContainerPatches(container, diffVNode(prev, next));
+
+  assert.equal(container.firstChild, root);
+  assert.equal(container.firstChild.firstChild, movedNode);
+  assert.deepEqual(createVNodeFromElement(container.firstChild), next);
+});
+
 test('루트 replace patch를 적용하면 새 루트를 반환한다', () => {
   const prev = createElementNode('div', {
     children: [createTextNode('before')],
@@ -202,6 +321,74 @@ test('루트 replace patch를 적용하면 새 루트를 반환한다', () => {
 
   assert.notEqual(patchedRoot, root);
   assert.deepEqual(createVNodeFromElement(patchedRoot), next);
+});
+
+test('루트 move path는 에러를 던진다', () => {
+  const root = createDOMNodeFromVNode(
+    createElementNode('div', {
+      children: [createTextNode('only')],
+    }),
+    dom.window.document,
+  );
+
+  assert.throws(
+    () =>
+      applyPatch(root, {
+        type: 'move',
+        from: [],
+        to: [0],
+      }),
+    /Cannot move the root node/,
+  );
+});
+
+test('서로 다른 부모 사이 move path는 에러를 던진다', () => {
+  const root = createDOMNodeFromVNode(
+    createElementNode('div', {
+      children: [
+        createElementNode('section', {
+          children: [createTextNode('first')],
+        }),
+        createElementNode('article', {
+          children: [createTextNode('second')],
+        }),
+      ],
+    }),
+    dom.window.document,
+  );
+
+  assert.throws(
+    () =>
+      applyPatch(root, {
+        type: 'move',
+        from: [0, 0],
+        to: [1, 0],
+      }),
+    /different parents/,
+  );
+});
+
+test('깊이가 다른 move path는 에러를 던진다', () => {
+  const root = createDOMNodeFromVNode(
+    createElementNode('div', {
+      children: [
+        createElementNode('section', {
+          children: [createTextNode('first')],
+        }),
+      ],
+    }),
+    dom.window.document,
+  );
+
+  assert.throws(
+    () =>
+      applyPatch(root, {
+        type: 'move',
+        from: [0],
+        to: [0, 0],
+      }),
+    /different depths/,
+  );
 });
 
 test('잘못된 path는 에러를 던진다', () => {

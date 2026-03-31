@@ -9,6 +9,7 @@ export type VNodePath = number[];
  * replace: path 위치 노드를 새 node 하나로 통째로 교체한다.
  * insert: path 위치에 새 자식을 삽입한다.
  * remove: path 위치 노드를 제거한다.
+ * move: 같은 부모 아래에서 기존 노드를 재사용하며 위치만 옮긴다.
  * text: path 위치 text node의 문자열만 바꾼다.
  * props: path 위치 element의 속성 중 remove는 삭제하고 set은 추가/수정한다.
  */
@@ -16,6 +17,7 @@ export type VNodePatch =
   | { type: 'replace'; path: VNodePath; node: VNode }
   | { type: 'insert'; path: VNodePath; node: VNode }
   | { type: 'remove'; path: VNodePath }
+  | { type: 'move'; from: VNodePath; to: VNodePath }
   | { type: 'text'; path: VNodePath; value: string }
   | {
       type: 'props';
@@ -122,15 +124,20 @@ function diffProps(
   };
 }
 
-// 자식 비교는 keyed diff를 우선 시도한다.
-// 다만 현재 patch 모델에는 move가 없기 때문에 안전한 경우에만 keyed diff를 사용한다.
+// 자식 비교는 keyed reorder를 move로 우선 시도하고,
+// 그 외 안전한 keyed 경우만 insert/remove 기반 diff를 사용한다.
 function diffChildren(
   prevChildren: VNode[],
   nextChildren: VNode[],
   parentPath: VNodePath,
   patches: VNodePatch[],
 ): void {
-  if (canUseKeyedDiff(prevChildren, nextChildren)) {
+  if (canUseMoveKeyedDiff(prevChildren, nextChildren)) {
+    diffMovedKeyedChildren(prevChildren, nextChildren, parentPath, patches);
+    return;
+  }
+
+  if (canUseStableKeyedDiff(prevChildren, nextChildren)) {
     diffKeyedChildren(prevChildren, nextChildren, parentPath, patches);
     return;
   }
@@ -177,9 +184,9 @@ function diffIndexedChildren(
   }
 }
 
-// keyed diff는 "모든 자식이 key 있는 element"이고 "key가 유일"하며
-// "공유 key의 상대 순서가 유지"되는 경우에만 사용한다.
-function canUseKeyedDiff(prevChildren: VNode[], nextChildren: VNode[]): boolean {
+// move 지원 keyed diff는 "모든 자식이 key 있는 element"이고 "key가 유일"하며
+// "이전/다음 key 집합이 동일"한 경우에만 사용한다.
+function canUseMoveKeyedDiff(prevChildren: VNode[], nextChildren: VNode[]): boolean {
   if (!hasOnlyKeyedElementChildren(prevChildren)) {
     return false;
   }
@@ -192,13 +199,81 @@ function canUseKeyedDiff(prevChildren: VNode[], nextChildren: VNode[]): boolean 
     return false;
   }
 
-  // 현재 patch 모델에는 move가 없으므로
-  // 공유 key의 상대 순서가 바뀐 경우는 index diff로 되돌린다.
+  return hasSameKeySet(prevChildren, nextChildren);
+}
+
+// 기존 keyed insert/remove diff는 key 집합이 다를 때만 사용하고,
+// 그 경우에도 공유 key의 상대 순서가 유지되어야 한다.
+function canUseStableKeyedDiff(prevChildren: VNode[], nextChildren: VNode[]): boolean {
+  if (!hasOnlyKeyedElementChildren(prevChildren)) {
+    return false;
+  }
+
+  if (!hasOnlyKeyedElementChildren(nextChildren)) {
+    return false;
+  }
+
+  if (!hasUniqueKeys(prevChildren) || !hasUniqueKeys(nextChildren)) {
+    return false;
+  }
+
+  if (hasSameKeySet(prevChildren, nextChildren)) {
+    return false;
+  }
+
   return !hasReorderedSharedKeys(prevChildren, nextChildren);
 }
 
+// 같은 key 집합이면 시뮬레이션 배열을 갱신하며 move patch를 먼저 만들고
+// 최종 순서 기준 인덱스로 같은 key 노드끼리 세부 diff를 수행한다.
+function diffMovedKeyedChildren(
+  prevChildren: VNode[],
+  nextChildren: VNode[],
+  parentPath: VNodePath,
+  patches: VNodePatch[],
+): void {
+  const prevKeyedChildren = prevChildren as Array<ElementVNode & { key: string }>;
+  const nextKeyedChildren = nextChildren as Array<ElementVNode & { key: string }>;
+  const simulatedKeys = prevKeyedChildren.map((child) => child.key);
+  const prevChildrenByKey = new Map(
+    prevKeyedChildren.map((child) => [child.key, child] as const),
+  );
+
+  for (let targetIndex = 0; targetIndex < nextKeyedChildren.length; targetIndex += 1) {
+    const nextChild = nextKeyedChildren[targetIndex];
+    const sourceIndex = simulatedKeys.indexOf(nextChild.key);
+
+    if (sourceIndex === -1) {
+      continue;
+    }
+
+    if (sourceIndex !== targetIndex) {
+      patches.push({
+        type: 'move',
+        from: parentPath.concat(sourceIndex),
+        to: parentPath.concat(targetIndex),
+      });
+
+      const [movedKey] = simulatedKeys.splice(sourceIndex, 1);
+
+      if (movedKey !== undefined) {
+        simulatedKeys.splice(targetIndex, 0, movedKey);
+      }
+    }
+  }
+
+  for (let index = 0; index < nextKeyedChildren.length; index += 1) {
+    const nextChild = nextKeyedChildren[index];
+    const prevChild = prevChildrenByKey.get(nextChild.key);
+
+    if (prevChild !== undefined) {
+      diffNode(prevChild, nextChild, parentPath.concat(index), patches);
+    }
+  }
+}
+
 // 같은 key를 가진 자식끼리 연결해서 비교한다.
-// move patch가 없기 때문에 상대 순서는 그대로라는 전제가 있다.
+// insert/remove가 섞인 keyed 케이스에서는 공유 key의 상대 순서가 유지될 때만 사용한다.
 function diffKeyedChildren(
   prevChildren: VNode[],
   nextChildren: VNode[],
@@ -265,7 +340,20 @@ function hasUniqueKeys(children: Array<ElementVNode & { key: string }>): boolean
   return new Set(children.map((child) => child.key)).size === children.length;
 }
 
-// move patch를 지원하지 않기 때문에
+function hasSameKeySet(
+  prevChildren: Array<ElementVNode & { key: string }>,
+  nextChildren: Array<ElementVNode & { key: string }>,
+): boolean {
+  if (prevChildren.length !== nextChildren.length) {
+    return false;
+  }
+
+  const prevKeySet = new Set(prevChildren.map((child) => child.key));
+
+  return nextChildren.every((child) => prevKeySet.has(child.key));
+}
+
+// keyed insert/remove 경로에서는 move가 없으므로
 // 두 트리에서 공유 key의 상대 순서가 바뀌었는지 미리 검사한다.
 function hasReorderedSharedKeys(
   prevChildren: Array<ElementVNode & { key: string }>,

@@ -24,6 +24,8 @@ export function applyPatch(root: Node, patch: VNodePatch): Node {
       return applyInsertPatch(root, patch.path, patch.node);
     case 'remove':
       return applyRemovePatch(root, patch.path);
+    case 'move':
+      return applyMovePatch(root, patch.from, patch.to);
     case 'text':
       return applyTextPatch(root, patch.path, patch.value);
     case 'props':
@@ -95,6 +97,49 @@ function applyRemovePatch(root: Node, path: VNodePath): Node {
   }
 
   target.parentNode.removeChild(target);
+
+  return root;
+}
+
+function applyMovePatch(root: Node, from: VNodePath, to: VNodePath): Node {
+  validateMovePaths(from, to);
+
+  const parentPath = from.slice(0, -1);
+  const fromIndex = from[from.length - 1]!;
+  const toIndex = to[to.length - 1]!;
+  const parentNode = parentPath.length === 0
+    ? root
+    : getNodeAtPath(root, parentPath);
+
+  assertCanHaveChildren(parentNode, parentPath);
+
+  if (fromIndex < 0 || fromIndex >= parentNode.childNodes.length) {
+    throw new Error(
+      `Cannot move from index ${fromIndex} under path ${formatPath(parentPath)}`,
+    );
+  }
+
+  if (toIndex < 0 || toIndex >= parentNode.childNodes.length) {
+    throw new Error(
+      `Cannot move to index ${toIndex} under path ${formatPath(parentPath)}`,
+    );
+  }
+
+  if (fromIndex === toIndex) {
+    return root;
+  }
+
+  const targetNode = parentNode.childNodes.item(fromIndex);
+
+  if (targetNode === null) {
+    throw new Error(`Cannot resolve node at path ${formatPath(from)}`);
+  }
+
+  parentNode.removeChild(targetNode);
+
+  const referenceNode = parentNode.childNodes.item(toIndex);
+
+  parentNode.insertBefore(targetNode, referenceNode);
 
   return root;
 }
@@ -179,4 +224,33 @@ function formatPath(path: VNodePath): string {
   }
 
   return path.join('.');
+}
+
+function validateMovePaths(from: VNodePath, to: VNodePath): void {
+  if (from.length === 0 || to.length === 0) {
+    throw new Error('Cannot move the root node');
+  }
+
+  if (from.length !== to.length) {
+    throw new Error(
+      `Cannot move nodes between different depths: ${formatPath(from)} -> ${formatPath(to)}`,
+    );
+  }
+
+  const fromParentPath = from.slice(0, -1);
+  const toParentPath = to.slice(0, -1);
+
+  if (pathsEqual(fromParentPath, toParentPath) === false) {
+    throw new Error(
+      `Cannot move nodes across different parents: ${formatPath(from)} -> ${formatPath(to)}`,
+    );
+  }
+}
+
+function pathsEqual(left: VNodePath, right: VNodePath): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((value, index) => value === right[index]);
 }
